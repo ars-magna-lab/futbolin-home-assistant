@@ -1,0 +1,641 @@
+# Futbolín · ESP32 con ESPHome
+#
+# Lleva la partida él solo (si HA o la WiFi caen, sigue contando) y la publica
+# en Home Assistant con el contrato de docs/README.md. Las barreras se leen por
+# interrupción directa en futbolin.h; aquí se validan los cortes, se aplican las
+# reglas de juego y se publican las entidades.
+#
+# Tiras: en cada momento de la partida el ESP32 activa un preset de WLED
+# (POST /json/state {"ps": n}) directo por la WiFi, sin pasar por HA. Los
+# presets están en wled/.
+#
+# Grabar la primera vez por USB, desde esta carpeta:
+#   esphome run futbolin.yaml --device /dev/ttyUSB0
+# Después, por WiFi (OTA) desde aquí o desde el ESPHome Device Builder de HA.
+# Claves en secrets.yaml (no se sube; copia secrets.example.yaml): wifi_ssid,
+# wifi_password, ap_password, futbolin_api_key, futbolin_ota y wled_ip (la IP
+# fija del controlador WLED de las tiras).
+
+substitutions:
+  duracion_minima_us: "500"   # cortes más breves = ruido (ajustar con las pruebas)
+  bloqueo_ms: "400"           # tiempo mínimo entre dos goles del mismo carril
+  atasco_ms: "2000"           # haz tapado más de esto = atasco
+  wled_ip: !secret wled_ip    # controlador WLED de las tiras
+  wled_timeout: 500ms         # lo más que espera a WLED; mientras, el bucle se para (la ISR no)
+  gol_luz_ms: "3500"          # efecto de gol en WLED (3 s, wled/) y un margen
+  luces_bateria_ms: "60000"   # tiempo por debajo del mínimo antes de cortar las luces
+  luces_histeresis: "10"      # % por encima del mínimo para que vuelvan
+
+esphome:
+  name: futbolin
+  friendly_name: Futbolín
+  includes:
+    - futbolin.h
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            futbolin::iniciar();
+            // Al encender con el interruptor general se empieza en reposo; tras un
+            // reinicio (OTA, caída de tensión, watchdog) se sigue con la partida.
+            if (esp_reset_reason() == ESP_RST_POWERON) {
+              id(goles_a) = 0;
+              id(goles_b) = 0;
+              id(fase) = futbolin::REPOSO;
+            }
+            ESP_LOGI("futbolin", "Arranque: %d-%d, %s", id(goles_a), id(goles_b),
+                     futbolin::nombre_fase(id(fase)));
+        - script.execute: autotest
+    - priority: -100
+      then:
+        - script.execute: publicar
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret futbolin_api_key
+  # Sin HA no se reinicia: no arregla nada y se arriesga la partida en curso
+  reboot_timeout: 0s
+  on_client_connected:
+    - script.execute: publicar
+
+ota:
+  - platform: esphome
+    password: !secret futbolin_ota
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  reboot_timeout: 0s
+  # Al arrancar o al volver la WiFi, las tiras se ponen como toca a la fase (o
+  # se apagan, si están cortadas por batería baja)
+  on_connect:
+    - if:
+        condition:
+          binary_sensor.is_on: luces_cortadas
+        then:
+          - script.execute: luz_apagar
+        else:
+          - script.execute: luz_fase
+  # Hotspot de rescate para reconfigurar la WiFi sin USB
+  ap:
+    ssid: "futbolin Fallback Hotspot"
+    password: !secret ap_password
+
+captive_portal:
+
+# Peticiones a WLED. Son síncronas: con WLED apagado o fuera de la red, cada una
+# para el bucle como mucho wled_timeout. Los cortes no se pierden (los mide la
+# ISR) y el gol ya está contado y publicado antes de llamar a WLED.
+http_request:
+  timeout: ${wled_timeout}
+  verify_ssl: false
+
+# Web del propio ESP32 (http://<ip>): entidades y log en directo, para depurar
+# desde el móvil mientras se juega
+web_server:
+  port: 80
+  version: 3
+
+globals:
+  - id: goles_a
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: goles_b
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: fase
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+script:
+  # Publica el marcador y la fase en HA
+  - id: publicar
+    then:
+      - lambda: |-
+          id(sensor_goles_a).publish_state(id(goles_a));
+          id(sensor_goles_b).publish_state(id(goles_b));
+          id(sensor_fase).publish_state(futbolin::nombre_fase(id(fase)));
+
+  # Suma o resta un gol. `detectado`: lo han visto las barreras (y no una
+  # corrección desde HA). Tras el sexto gol y en reposo no suma nada; las
+  # correcciones recalculan la fase (−1 desde 6-5 vuelve a bola de partido).
+  - id: marcar
+    mode: queued
+    parameters:
+      equipo: int
+      cambio: int
+      detectado: bool
+    then:
+      - lambda: |-
+          const int f = id(fase);
+          if (cambio > 0 && !futbolin::cuenta_goles(f)) return;
+          if (cambio < 0 && f == futbolin::REPOSO) return;
+          const int a = id(goles_a) + (equipo == 0 ? cambio : 0);
+          const int b = id(goles_b) + (equipo == 1 ? cambio : 0);
+          if (a < 0 || b < 0) return;
+          id(goles_a) = a;
+          id(goles_b) = b;
+          id(fase) = futbolin::calcular_fase(a, b);
+          ESP_LOGI("futbolin", "%s %s: %d-%d, %s", cambio > 0 ? "+1" : "-1", equipo == 0 ? "A" : "B",
+                   a, b, futbolin::nombre_fase(id(fase)));
+          if (cambio > 0 && detectado) id(evento_gol).trigger(equipo == 0 ? "gol_a" : "gol_b");
+          // Luces: cualquier +1 se celebra (también los de HA, como hace el
+          // dashboard); un −1 solo cambia las tiras si cambia la fase
+          if (cambio > 0) id(luz_gol).execute(equipo);
+          else if (id(fase) != f) id(luz_fase).execute();
+      - script.execute: publicar
+
+  - id: reiniciar_partida
+    parameters:
+      nueva: bool
+    then:
+      - lambda: |-
+          id(goles_a) = 0;
+          id(goles_b) = 0;
+          id(fase) = nueva ? futbolin::NORMAL : futbolin::REPOSO;
+          ESP_LOGI("futbolin", nueva ? "Nueva partida" : "Partida anulada");
+          id(luz_gol).stop();
+      - script.execute: publicar
+      - script.execute: luz_fase
+
+  # ---------- tiras (WLED) ----------
+  # Activa un preset de WLED (POST /json/state {"ps": n}) si los efectos de luz
+  # están encendidos y las luces no están cortadas por batería baja. Si WLED no
+  # responde, solo queda en el log: la partida no depende de las tiras. En cola,
+  # para no perder el preset de la fase que va detrás de un gol.
+  - id: luz
+    mode: queued
+    max_runs: 3
+    parameters:
+      preset: int
+    then:
+      - if:
+          condition:
+            and:
+              - switch.is_on: efectos_luz
+              - binary_sensor.is_off: luces_cortadas
+              - wifi.connected:
+          then:
+            - logger.log:
+                format: "Tiras: preset %d"
+                args: [preset]
+            - http_request.post:
+                url: http://${wled_ip}/json/state
+                request_headers:
+                  Content-Type: application/json
+                json: !lambda 'root["ps"] = preset;'
+                on_error:
+                  - logger.log:
+                      format: "Tiras: WLED no responde (preset %d)"
+                      args: [preset]
+                      level: WARN
+
+  # Apaga las tiras ({"on": false}): al apagar los efectos de luz y al cortarlas
+  # por batería baja. No mira el switch: se manda justo cuando se apaga.
+  - id: luz_apagar
+    mode: queued
+    max_runs: 2
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - logger.log: "Tiras: apagadas"
+            - http_request.post:
+                url: http://${wled_ip}/json/state
+                request_headers:
+                  Content-Type: application/json
+                body: '{"on":false}'
+                on_error:
+                  - logger.log:
+                      format: "Tiras: WLED no responde (apagar)"
+                      level: WARN
+
+  # Pone las tiras como toca a la fase (reposo = piloto, juego = apagadas, y el
+  # efecto corto de bola de partido o la buena), o en aviso si hay un atasco con
+  # la partida en juego o el autotest ha fallado
+  - id: luz_fase
+    then:
+      - script.execute:
+          id: luz
+          preset: !lambda |-
+            const bool atasco = futbolin::cuenta_goles(id(fase)) && (id(atasco_a).state || id(atasco_b).state);
+            const bool autotest_mal = id(autotest_ok).has_state() && !id(autotest_ok).state;
+            if (atasco || autotest_mal) return futbolin::PRESET_AVISO;
+            return futbolin::preset_fase(id(fase));
+
+  # Gol (0 = A, 1 = B), con la fase ya calculada. El preset de gol es una playlist
+  # de WLED que vuelve sola a juego (apagadas); si el gol deja bola de partido o
+  # la buena, al acabar el efecto se manda el de esa fase. El gol que gana lanza la
+  # fiesta (fin_a / fin_b), que acaba sola en reposo. Otro gol antes de que
+  # acabe el efecto lo reinicia.
+  - id: luz_gol
+    mode: restart
+    parameters:
+      equipo: int
+    then:
+      - script.execute:
+          id: luz
+          preset: !lambda 'return futbolin::preset_gol(equipo, id(fase));'
+      - if:
+          condition:
+            lambda: 'return futbolin::cuenta_goles(id(fase)) && id(fase) != futbolin::NORMAL;'
+          then:
+            - delay: ${gol_luz_ms}ms
+            - script.execute: luz_fase
+
+  # Apaga los emisores y comprueba que los receptores pasan a «tapado»; los
+  # enciende y comprueba que vuelven a «libre». Verifica cableado y alineación.
+  - id: autotest
+    mode: single
+    then:
+      - lambda: |-
+          futbolin::emisores(false);
+          delay(50);
+          bool apagado[2] = {futbolin::ve_tapado(0), futbolin::ve_tapado(1)};
+          futbolin::emisores(true);
+          delay(50);
+          bool encendido[2] = {!futbolin::ve_tapado(0), !futbolin::ve_tapado(1)};
+          futbolin::sincronizar();
+          std::string detalle;
+          bool ok = true;
+          for (int i = 0; i < 2; i++) {
+            if (i) detalle += " · ";
+            detalle += i == 0 ? "A " : "B ";
+            if (!apagado[i]) detalle += "no responde al apagar el emisor";
+            else if (!encendido[i]) detalle += "tapado con el emisor encendido";
+            else detalle += "OK";
+            ok = ok && apagado[i] && encendido[i];
+          }
+          ESP_LOGI("futbolin", "Autotest: %s", detalle.c_str());
+          id(autotest_ok).publish_state(ok);
+          id(autotest_detalle).publish_state(detalle);
+
+# Cada 10 ms (el segundo intervalo): valida los cortes que ha medido la ISR, vigila los atascos y
+# publica el estado de los haces. Un corte es gol si ha durado al menos
+# duracion_minima_us y han pasado bloqueo_ms desde el último gol de ese carril.
+interval:
+  # Corte de las luces por batería baja: si el % lleva luces_bateria_ms por
+  # debajo del mínimo, apaga las tiras y bloquea los presets (sin tocar el switch
+  # de efectos). Se levanta al subir a mínimo + luces_histeresis (los efectos
+  # hunden la tensión y rebotaría) y vuelve la luz de la fase. No se aplica en
+  # modo enchufado ni sin lectura de batería (divisor sin montar).
+  - interval: 5s
+    then:
+      - lambda: |-
+          static bool bajando = false;
+          static uint32_t bajo_desde = 0;
+          const float pct = id(bateria).state;
+          const float minimo = id(luces_bateria_minima).state;
+          const bool cortadas = id(luces_cortadas).state;
+          if (!id(luces_cortadas).has_state()) id(luces_cortadas).publish_state(false);
+          if (id(modo_enchufado).state || isnan(pct) || isnan(minimo)) {
+            bajando = false;
+            if (cortadas) {
+              ESP_LOGI("futbolin", "Luces: se levanta el corte (enchufado o sin lectura de batería)");
+              id(luces_cortadas).publish_state(false);
+              id(luz_fase).execute();
+            }
+            return;
+          }
+          if (!cortadas) {
+            if (pct >= minimo) {
+              bajando = false;
+            } else if (!bajando) {
+              bajando = true;
+              bajo_desde = millis();
+            } else if (millis() - bajo_desde >= ${luces_bateria_ms}) {
+              bajando = false;
+              ESP_LOGW("futbolin", "Luces: batería al %.0f %% (mínimo %.0f %%), se cortan", pct, minimo);
+              id(luces_cortadas).publish_state(true);
+              id(luz_gol).stop();
+              id(luz_apagar).execute();
+            }
+          } else if (pct >= minimo + ${luces_histeresis}) {
+            ESP_LOGI("futbolin", "Luces: batería al %.0f %%, vuelven", pct);
+            id(luces_cortadas).publish_state(false);
+            id(luz_fase).execute();
+          }
+
+  - interval: 10ms
+    then:
+      - lambda: |-
+          static const char *nombre[2] = {"A", "B"};
+          static sensor::Sensor *sensor_corte[2] = {id(corte_a), id(corte_b)};
+          static sensor::Sensor *sensor_ruido[2] = {id(ruido_a), id(ruido_b)};
+          static sensor::Sensor *sensor_rebotes[2] = {id(rebotes_a), id(rebotes_b)};
+          static binary_sensor::BinarySensor *haz[2] = {id(haz_a), id(haz_b)};
+          static binary_sensor::BinarySensor *atasco[2] = {id(atasco_a), id(atasco_b)};
+          for (int i = 0; i < 2; i++) {
+            uint32_t dur;
+            if (futbolin::leer_corte(i, dur)) {
+              const uint32_t ahora = millis();
+              const char *resultado;
+              if (dur < ${duracion_minima_us}) {
+                resultado = "ruido";
+                sensor_ruido[i]->publish_state(++futbolin::ruido[i]);
+              } else if (ahora - futbolin::ultimo_valido_ms[i] < ${bloqueo_ms}) {
+                resultado = "rebote";
+                sensor_rebotes[i]->publish_state(++futbolin::rebotes[i]);
+              } else {
+                futbolin::ultimo_valido_ms[i] = ahora;
+                if (futbolin::cuenta_goles(id(fase))) {
+                  resultado = "gol";
+                  id(marcar).execute(i, 1, true);
+                } else {
+                  resultado = id(fase) == futbolin::REPOSO ? "ignorado, sin partida" : "ignorado, partida terminada";
+                }
+              }
+              sensor_corte[i]->publish_state(dur / 1000.0f);
+              char texto[80];
+              snprintf(texto, sizeof(texto), "#%u %s %.1f ms %s", (unsigned) ++futbolin::cortes,
+                       nombre[i], dur / 1000.0f, resultado);
+              id(ultimo_corte).publish_state(texto);
+              ESP_LOGI("futbolin", "Corte %s", texto);
+            }
+            haz[i]->publish_state(futbolin::barreras[i].tapado);
+            atasco[i]->publish_state(futbolin::tapado_ms(i) > ${atasco_ms});
+          }
+
+sensor:
+  - platform: template
+    id: sensor_goles_a
+    name: Goles A
+    icon: mdi:soccer
+    accuracy_decimals: 0
+    update_interval: never
+  - platform: template
+    id: sensor_goles_b
+    name: Goles B
+    icon: mdi:soccer
+    accuracy_decimals: 0
+    update_interval: never
+
+  # Batería: divisor 100 kΩ / 20 kΩ (10 k + 10 k) al GPIO 34, montado en la
+  # entrada del buck (IN+ / IN−). Sin el divisor marca 0 V. Calibrar el
+  # multiplicador con un multímetro.
+  - platform: adc
+    id: bateria_voltios
+    name: Batería voltios
+    pin: GPIO34
+    attenuation: 12db
+    update_interval: 2s
+    unit_of_measurement: V
+    device_class: voltage
+    accuracy_decimals: 2
+    filters:
+      - multiply: 5.933   # (100 + 20) / 20 = 6,0, ajustado con el multímetro (cambia con cada ADC)
+      - sliding_window_moving_average:
+          window_size: 15
+          send_every: 15
+  # Plomo en reposo: 11,8 V = 0 %, 12,7 V = 100 %. La curva es de reposo, pero
+  # se mide con carga: con las tiras encendidas (~1 A) el plomo cae casi 0,5 V
+  # y tarda minutos en recuperarse. Por eso el % sale de
+  # la tensión más alta de los últimos 10 min (20 lecturas de 30 s): los efectos
+  # son puntuales y solo la hunden un rato. Con las tiras encendidas más de 10 min
+  # seguidos baja, que es lo prudente (el corte de luces usa este %).
+  - platform: template
+    id: bateria
+    name: Batería
+    unit_of_measurement: "%"
+    device_class: battery
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      static float lecturas[20];
+      static int n = 0, pos = 0;
+      const float actual = id(bateria_voltios).state;
+      if (isnan(actual)) return NAN;
+      lecturas[pos] = actual;
+      pos = (pos + 1) % 20;
+      if (n < 20) n++;
+      float v = lecturas[0];
+      for (int i = 1; i < n; i++) v = std::max(v, lecturas[i]);
+      static const float tension[] = {11.8f, 12.0f, 12.2f, 12.4f, 12.7f};
+      static const float carga[] = {0, 25, 50, 75, 100};
+      if (v <= tension[0]) return 0;
+      for (int i = 1; i < 5; i++)
+        if (v <= tension[i])
+          return carga[i - 1] + (v - tension[i - 1]) / (tension[i] - tension[i - 1]) * (carga[i] - carga[i - 1]);
+      return 100;
+
+  # Diagnóstico de las barreras (desde el arranque)
+  - platform: template
+    id: corte_a
+    name: Corte A
+    icon: mdi:timer-outline
+    unit_of_measurement: ms
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: corte_b
+    name: Corte B
+    icon: mdi:timer-outline
+    unit_of_measurement: ms
+    accuracy_decimals: 1
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: ruido_a
+    name: Ruido A
+    icon: mdi:sine-wave
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: ruido_b
+    name: Ruido B
+    icon: mdi:sine-wave
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: rebotes_a
+    name: Rebotes A
+    icon: mdi:debug-step-over
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: rebotes_b
+    name: Rebotes B
+    icon: mdi:debug-step-over
+    accuracy_decimals: 0
+    update_interval: never
+    entity_category: diagnostic
+
+  - platform: wifi_signal
+    name: Señal WiFi
+    update_interval: 60s
+  # También es el latido: cada 5 s, para que HA vea enseguida que el futbolín
+  # se ha apagado (al cortar la corriente la conexión no se cierra y la API de
+  # ESPHome tarda unos 90 s en darlo por perdido). Ver binary_sensor.futbolin_vivo
+  # en el paquete de HA.
+  - platform: uptime
+    name: Encendido
+    update_interval: 5s
+
+text_sensor:
+  - platform: template
+    id: sensor_fase
+    name: Fase
+    icon: mdi:scoreboard
+    update_interval: never
+  # Cada corte del haz con su duración y qué se ha hecho con él: el registro
+  # de HA (logbook) queda como diario de la partida para comparar con el ábaco
+  - platform: template
+    id: ultimo_corte
+    name: Último corte
+    icon: mdi:format-list-numbered
+    update_interval: never
+    entity_category: diagnostic
+  - platform: template
+    id: autotest_detalle
+    name: Autotest detalle
+    icon: mdi:check-network
+    update_interval: never
+    entity_category: diagnostic
+  - platform: wifi_info
+    ip_address:
+      name: IP
+
+binary_sensor:
+  # Al cambiar, las tiras pasan a aviso o vuelven a la fase (luz_fase)
+  - platform: template
+    id: atasco_a
+    name: Atasco A
+    device_class: problem
+    on_state:
+      - script.execute: luz_fase
+  - platform: template
+    id: atasco_b
+    name: Atasco B
+    device_class: problem
+    on_state:
+      - script.execute: luz_fase
+  # on = OK
+  - platform: template
+    id: autotest_ok
+    name: Autotest
+    icon: mdi:check-network
+    on_state:
+      - script.execute: luz_fase
+  # Las tiras están apagadas por batería baja (ver el intervalo de 5 s)
+  - platform: template
+    id: luces_cortadas
+    name: Luces cortadas por batería
+    icon: mdi:battery-alert
+  - platform: template
+    id: haz_a
+    name: Haz A
+    icon: mdi:ray-vertex
+    entity_category: diagnostic
+    disabled_by_default: true
+  - platform: template
+    id: haz_b
+    name: Haz B
+    icon: mdi:ray-vertex
+    entity_category: diagnostic
+    disabled_by_default: true
+
+event:
+  - platform: template
+    id: evento_gol
+    name: Gol
+    icon: mdi:soccer
+    event_types:
+      - gol_a
+      - gol_b
+
+button:
+  - platform: template
+    name: Nueva partida
+    icon: mdi:restart
+    on_press:
+      - script.execute:
+          id: reiniciar_partida
+          nueva: true
+  - platform: template
+    name: Anular partida
+    icon: mdi:cancel
+    on_press:
+      - script.execute:
+          id: reiniciar_partida
+          nueva: false
+  - platform: template
+    name: Gol A más
+    icon: mdi:plus
+    on_press:
+      - script.execute: {id: marcar, equipo: 0, cambio: 1, detectado: false}
+  - platform: template
+    name: Gol A menos
+    icon: mdi:minus
+    on_press:
+      - script.execute: {id: marcar, equipo: 0, cambio: -1, detectado: false}
+  - platform: template
+    name: Gol B más
+    icon: mdi:plus
+    on_press:
+      - script.execute: {id: marcar, equipo: 1, cambio: 1, detectado: false}
+  - platform: template
+    name: Gol B menos
+    icon: mdi:minus
+    on_press:
+      - script.execute: {id: marcar, equipo: 1, cambio: -1, detectado: false}
+  - platform: template
+    name: Autotest
+    icon: mdi:check-network
+    on_press:
+      - script.execute: autotest
+  - platform: restart
+    name: Reiniciar
+    entity_category: diagnostic
+
+switch:
+  - platform: template
+    id: modo_enchufado
+    name: Modo enchufado
+    icon: mdi:power-plug
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+  # El interruptor de luces del dashboard. Al apagarlo, apaga las tiras y el
+  # ESP32 deja de mandar presets (HA puede seguir manejándolas). Al encenderlo,
+  # las tiras se ponen como toca a la fase.
+  - platform: template
+    id: efectos_luz
+    name: Efectos luz
+    icon: mdi:lightbulb-auto
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - script.execute: luz_fase
+    on_turn_off:
+      - script.stop: luz_gol
+      - script.execute: luz_apagar
+
+# Por debajo de este % de batería (60 s seguidos) se apagan las tiras
+number:
+  - platform: template
+    id: luces_bateria_minima
+    name: Luces batería mínima
+    icon: mdi:battery-low
+    unit_of_measurement: "%"
+    min_value: 5
+    max_value: 60
+    step: 5
+    initial_value: 25
+    optimistic: true
+    restore_value: true
+    entity_category: config
