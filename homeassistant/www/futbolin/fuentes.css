@@ -1,0 +1,11 @@
+/* Tipografía del marcador del futbolín (dashboard /futbolin).
+   Big Shoulders Display, fuente variable de Google Fonts (OFL), servida en local
+   para que la tablet no dependa de internet. Se carga como recurso CSS de
+   Lovelace: un @font-face dentro del shadow DOM de una tarjeta no vale. */
+@font-face {
+  font-family: "Big Shoulders Display";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(/local/futbolin/big-shoulders-display.woff2) format("woff2");
+}

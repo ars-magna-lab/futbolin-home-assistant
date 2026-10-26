@@ -1,0 +1,954 @@
+# =============================================================================
+# FUTBOLÍN · EL MARCADOR
+#
+# El marcador del futbolín para una tablet (pensado para 1280x800 px de
+# viewport), a unos 2 m de la mesa: Real Madrid (equipo A, a la izquierda)
+# contra el FC Barcelona (equipo B). Sale de la maqueta docs/maqueta/marcador.html.
+#
+# Todo el marcador es UNA button-card que hace de escenario de 1280x800 y se
+# escala a la ventana. Cada parte que cambia por su cuenta va en su propio
+# campo (custom_field): lit solo rehace un campo si cambia su HTML, así que la
+# animación del gol o el cartel de «la buena» no vuelven a empezar cuando
+# cambia otra cosa (la batería, por ejemplo).
+#
+#   base       barra de estado, paneles de los equipos y columna de las 11 bolas
+#   digito_a/b los números en matriz de puntos 8x13
+#   buena      el cartel y el latido de «la buena» (5-5)
+#   capa       reposo («¿Echamos una?»), final (ganador y confeti) o apagado
+#   gol        la animación de «¡GOL!» con cualquier gol que sume (barreras,
+#              +1 o voz), a partir de sensor.futbolin_ultimo_gol
+#   sonido     el sonido de ese gol (www/futbolin/sonidos/); lo reproduce la
+#              propia página, así que solo suena con el marcador abierto
+#   resto      los botones, que son button-cards anidadas
+#
+# Entidades: las del ESP32 (contrato en docs/README.md) más las de
+# packages/. La vista «Depuración» enseña las barreras y el diagnóstico del
+# ESP32 para las pruebas.
+#
+# Necesita button-card (HACS). Escudos, tipografía y sonidos en /local/futbolin/
+# (homeassistant/www/futbolin/ de este repo, copiado a /config/www/futbolin/).
+# La fuente se carga con el recurso CSS /local/futbolin/fuentes.css.
+#
+# Instalación: crea un dashboard con la URL «futbolin-marcador» y pega este
+# fichero en su editor de configuración en bruto (o úsalo en modo YAML). Ver
+# homeassistant/README.md.
+#
+# Música (opcional): media_player.spotify sonando en el dispositivo de Spotify
+# Connect «Tablet». Cambia los dos por los tuyos o quita el botón `musica`.
+# =============================================================================
+
+# Opcional, con kiosk-mode (HACS): sin cabecera ni barra lateral para el
+# usuario de HA de la tablet (aquí, «tablet»)
+kiosk_mode:
+  user_settings:
+    - users:
+        - tablet
+      kiosk: true
+
+button_card_templates:
+  # Los botones de abajo: mismo fondo y tipografía que el marcador
+  futbolin_mando:
+    show_icon: false
+    show_state: false
+    show_label: false
+    tap_action:
+      action: none
+    hold_action:
+      action: none
+    styles:
+      card:
+        - width: 100%
+        - height: 90px
+        - border-radius: 22px
+        - background: "#0d1117"
+        - border: 1px solid rgba(255,255,255,.1)
+        - box-shadow: none
+        - padding: 0
+        - color: "#8a94a6"
+      name:
+        - font-family: '"Big Shoulders Display", sans-serif'
+        - font-weight: 700
+        - font-size: 30px
+        - letter-spacing: .06em
+        - color: inherit
+      label:
+        - font-size: 11px
+        - font-weight: 600
+        - letter-spacing: .08em
+        - text-transform: uppercase
+        - color: "#8a94a6"
+
+views:
+  - title: Marcador
+    path: marcador
+    icon: mdi:scoreboard
+    type: panel
+    cards:
+      - type: custom:button-card
+        show_icon: false
+        show_name: false
+        show_state: false
+        tap_action:
+          action: none
+        hold_action:
+          action: none
+        triggers_update:
+          - sensor.futbolin_marcador_a
+          - sensor.futbolin_marcador_b
+          - sensor.futbolin_marcador_fase
+          - input_boolean.futbolin_simulacion
+          - sensor.futbolin_secuencia
+          - sensor.futbolin_ultimo_gol
+          - sensor.futbolin_inicio
+          - sensor.futbolin_bateria
+          - binary_sensor.futbolin_atasco_a
+          - binary_sensor.futbolin_atasco_b
+          - binary_sensor.futbolin_autotest
+          - switch.futbolin_modo_enchufado
+          - switch.futbolin_efectos_luz
+          - light.futbolin_tiras
+          - media_player.spotify
+
+        variables:
+          # Todo el estado que pinta el marcador, calculado una vez por render
+          m: |
+            [[[
+              const s = id => (states[id] || {}).state;
+              const n = id => { const v = parseInt(s(id)); return isNaN(v) ? 0 : Math.min(6, Math.max(0, v)); };
+              // Goles y fase del paquete futbolin_simulacion: los del ESP32 o, con la
+              // simulación puesta, los simulados
+              const simulacion = s('input_boolean.futbolin_simulacion') === 'on';
+              const disponible = !['unavailable', 'unknown', undefined].includes(s('sensor.futbolin_marcador_fase'));
+              const fase = disponible ? s('sensor.futbolin_marcador_fase') : 'reposo';
+              const fin = fase === 'fin_a' || fase === 'fin_b';
+              const ug = states['sensor.futbolin_ultimo_gol'];
+              const momento = ug ? parseFloat(ug.attributes.momento) * 1000 : 0;
+              return {
+                disponible, fase, fin, simulacion,
+                enJuego: disponible && !fin && fase !== 'reposo',
+                ga: n('sensor.futbolin_marcador_a'), gb: n('sensor.futbolin_marcador_b'),
+                sec: (s('sensor.futbolin_secuencia') || '').replace(/[^ab]/g, ''),
+                // La animación solo si el gol es de hace nada (también al abrir la página)
+                golReciente: ug && ['a', 'b'].includes(ug.state) && Date.now() - momento < 10000 ? ug.state : null,
+                momento,
+                bateria: parseInt(s('sensor.futbolin_bateria')),
+                enchufado: s('switch.futbolin_modo_enchufado') === 'on',
+                efectos: s('switch.futbolin_efectos_luz') !== 'off',
+                // La música de las partidas: Spotify sonando en la tablet
+                musica: s('media_player.spotify') === 'playing'
+                        && states['media_player.spotify'].attributes.source === 'Tablet',
+                atascoA: s('binary_sensor.futbolin_atasco_a') === 'on',
+                atascoB: s('binary_sensor.futbolin_atasco_b') === 'on',
+                autotestOk: s('binary_sensor.futbolin_autotest') !== 'off',
+              };
+            ]]]
+          # Dígitos 0–6 en una matriz de 8x13 puntos, con trazo de dos puntos
+          digitos: |
+            [[[
+              const P = {
+                0: ["00111100","01111110","11100111","11000011","11000011","11000011","11000011","11000011","11000011","11000011","11100111","01111110","00111100"],
+                1: ["00011000","00111000","01111000","11011000","00011000","00011000","00011000","00011000","00011000","00011000","00011000","01111110","01111110"],
+                2: ["00111100","01111110","11000011","00000011","00000011","00000111","00001110","00011100","00111000","01110000","11100000","11111111","11111111"],
+                3: ["00111100","01111110","11000011","00000011","00000011","00001110","00111100","00001110","00000011","00000011","11000011","01111110","00111100"],
+                4: ["00000110","00001110","00011110","00110110","01100110","11000110","11000110","11111111","11111111","00000110","00000110","00000110","00000110"],
+                5: ["11111111","11111111","11000000","11000000","11111110","11111111","00000011","00000011","00000011","00000011","11000011","01111110","00111100"],
+                6: ["00011110","00111000","01110000","11000000","11000000","11111110","11111111","11000011","11000011","11000011","11100111","01111110","00111100"],
+              };
+              return (n, equipo) => `<div class="digito ${equipo}">` + P[n].map((fila, y) =>
+                [...fila].map((c, x) => `<i class="${c === '1' ? 'on' : ''}" style="--d:${x * 18 + y * 10}ms"></i>`).join('')
+              ).join('') + '</div>';
+            ]]]
+
+        custom_fields:
+          base: |
+            [[[
+              const m = variables.m;
+              const nombre = { a: 'Real Madrid', b: 'Barcelona' };
+              const chip = (clase, icono, texto) =>
+                `<div class="chip ${clase}"><ha-icon icon="${icono}"></ha-icon><span>${texto}</span></div>`;
+
+              let chips = '';
+              if (m.simulacion) chips += chip('aviso', 'mdi:controller', 'Simulación');
+              else if (m.disponible) {
+                if (m.atascoA || m.atascoB)
+                  chips += chip('error', 'mdi:alert', `Atasco: portería del ${m.atascoA ? nombre.a : nombre.b}`);
+                chips += m.autotestOk ? chip('ok', 'mdi:check-network-outline', 'Sensores OK')
+                                      : chip('aviso', 'mdi:alert-circle-outline', 'Revisar sensores');
+                chips += m.efectos ? chip('', 'mdi:lightbulb-auto-outline', 'Efectos')
+                                   : chip('aviso', 'mdi:lightbulb-off-outline', 'Efectos apagados');
+                if (m.enchufado) chips += chip('', 'mdi:power-plug-outline', 'Enchufado');
+                else if (!isNaN(m.bateria)) {
+                  const p = m.bateria;
+                  const icono = p >= 95 ? 'mdi:battery' : `mdi:battery-${Math.max(10, Math.round(p / 10) * 10)}`;
+                  chips += chip(p <= 10 ? 'error' : p <= 20 ? 'aviso' : '', icono, `${p} %`);
+                }
+              }
+
+              const panel = (e) => {
+                const partido = m.fase === `bola_partido_${e}`;
+                const pierde = m.fin && m.fase !== `fin_${e}`;
+                const escudo = `/local/futbolin/${e === 'a' ? 'madrid' : 'barcelona'}.svg`;
+                return `<section class="equipo ${e} ${partido ? 'partido' : ''} ${pierde ? 'pierde' : ''}">
+                  <img class="marca-agua" src="${escudo}" alt="">
+                  <div class="cabecera"><img class="escudo" src="${escudo}" alt=""><div class="nombre">${nombre[e]}</div></div>
+                  <div class="cinta">BOLA DE PARTIDO</div>
+                </section>`;
+              };
+
+              let bolas = '';
+              for (let i = 0; i < 11; i++) {
+                const quien = m.sec[i] || '';
+                const siguiente = m.enJuego && i === m.sec.length ? 'siguiente' : '';
+                bolas += `<div class="bola ${i === 10 ? 'buena' : ''} ${quien} ${siguiente}"></div>`;
+              }
+              const bola = `BOLA<b>${m.ga + m.gb + 1}/11</b>`;
+              const textoFase = { reposo: '', normal: bola, bola_partido_a: bola, bola_partido_b: bola,
+                                  la_buena: 'LA<b>BUENA</b>', fin_a: '<b>FINAL</b>', fin_b: '<b>FINAL</b>' }[m.fase] || '';
+
+              return `<div class="escenario ${m.fase === 'la_buena' ? 'la-buena' : ''}">
+                <header class="barra">
+                  <div class="marca"><b>FUTBOLÍN</b> · GARAJE</div>
+                  <div class="chips">${chips}</div>
+                </header>
+                ${panel('a')}
+                <aside class="bolas"><div class="fase">${textoFase}</div>${bolas}</aside>
+                ${panel('b')}
+              </div>`;
+            ]]]
+
+          digito_a: "[[[ return variables.digitos(variables.m.ga, 'a'); ]]]"
+          digito_b: "[[[ return variables.digitos(variables.m.gb, 'b'); ]]]"
+
+          buena: |
+            [[[
+              if (variables.m.fase !== 'la_buena') return '';
+              return `<div class="latido"></div>
+                <div class="banda-buena">LA BUENA<small>BOLA AL CENTRO</small></div>`;
+            ]]]
+
+          capa: |
+            [[[
+              const m = variables.m;
+              if (!m.disponible) return `<div class="capa apagado">
+                <ha-icon icon="mdi:power"></ha-icon>
+                <div class="titular" style="font-size:72px">Futbolín apagado</div>
+                <div class="pista">Enciende el interruptor de debajo del mueble, o pulsa <b>Simular</b> para probar el marcador</div></div>`;
+              if (m.fase === 'reposo') return `<div class="capa reposo">
+                <div class="titular">¿Echamos <em>una</em>?</div>
+                <div class="pista">Di <b>«nueva partida»</b> o pulsa el botón</div></div>`;
+              if (!m.fin) return '';
+              const e = m.fase === 'fin_a' ? 'a' : 'b';
+              const colores = e === 'a' ? ['#ffffff', '#f2ecdc', '#d8b45a', '#b8c4d6'] : ['#3d8bff', '#000000', '#ff6b74', '#2a2a2a'];
+              let confeti = '';
+              // Poco confeti y sin desenfoque de fondo: con 70 trozos y blur la tablet
+              // iba a tirones y el botón de nueva partida tardaba en responder
+              for (let i = 0; i < 24; i++)
+                confeti += `<span class="confeti" style="left:${(i * 41) % 100}%;background:${colores[i % 4]};` +
+                           `animation-duration:${2.5 + ((i * 13) % 30) / 10}s;animation-delay:-${((i * 7) % 50) / 10}s"></span>`;
+              return `<div class="capa fin ${e}">${confeti}
+                <img class="escudo-fin" src="/local/futbolin/${e === 'a' ? 'madrid' : 'barcelona'}.svg" alt="">
+                <div class="gana">GANA EL</div>
+                <div class="ganador">${e === 'a' ? 'Real Madrid' : 'Barcelona'}</div>
+                <div class="resultado">${m.ga} – ${m.gb}</div>
+                <div class="pista">Di <b>«nueva partida»</b> o pulsa el botón</div></div>`;
+            ]]]
+
+          gol: |
+            [[[
+              const e = variables.m.golReciente;
+              if (!e) return '';
+              return `<div class="capa-gol ${e}" data-momento="${variables.m.momento}">
+                <img class="escudo-gol" src="/local/futbolin/${e === 'a' ? 'madrid' : 'barcelona'}.svg" alt="">
+                <div class="texto-gol">¡GOL!</div>
+                <div class="quien">${e === 'a' ? 'REAL MADRID' : 'BARCELONA'}</div></div>`;
+            ]]]
+
+          # El sonido del gol, que se elige con la fase que deja el gol: gol,
+          # gol con bola de partido (solo si la tiene quien marca), gol con «la
+          # buena» o gol que gana. Habla el locutor (abajo); los MP3 de reserva
+          # suenan si falta el atributo `locutor`.
+          # Solo si el gol es de hace menos de 15 s (el más largo dura 12 s).
+          # Los MP3 están en www/futbolin/sonidos/. Al empezar la partida, la
+          # presentación del locutor (inicio_<n>.mp3), salvo que ya haya un gol
+          # más reciente.
+          #
+          # Con música (Spotify en la tablet) Android la baja mientras habla el
+          # locutor, pero solo si el sonido dura menos de 5 s: con uno más largo
+          # Chromium pide el foco entero y Spotify se pausa. El truco: un MP3 de 1 s de silencio en bucle pide el foco
+          # «temporal, se puede bajar» y la voz va por Web Audio, que no pide
+          # foco. Al acabar, el silencio se deshace (con pause() Chromium no
+          # suelta el foco). Lo hace window.futbolinLocutor, que no repite una
+          # locución si la tarjeta se vuelve a pintar y corta la anterior si
+          # llega otra. El campo no pinta nada.
+          sonido: |
+            [[[
+              // (si el que hay es de antes del locutor v2, sin elegir, se rehace)
+              const L = window.futbolinLocutor?.elegir ? window.futbolinLocutor : (window.futbolinLocutor = (() => {
+                let ctx = null, fuente = null, silencio = null, ultima = null;
+                let elegida = null, menores = 0;
+                const decodificados = {}, bolsas = {};
+                // Un número de 1 a n que no se repite hasta gastar los n: una
+                // bolsa barajada por momento (se pierde al recargar, da igual).
+                const sacar = (tipo, n) => {
+                  let b = bolsas[tipo];
+                  if (!b || !b.length) {
+                    b = bolsas[tipo] = Array.from({ length: n }, (_, i) => i + 1);
+                    for (let i = n - 1; i > 0; i--) {
+                      const j = Math.floor(Math.random() * (i + 1));
+                      [b[i], b[j]] = [b[j], b[i]];
+                    }
+                  }
+                  return b.pop();
+                };
+                const soltar = () => {
+                  if (!silencio) return;
+                  silencio.pause();
+                  silencio.removeAttribute('src');
+                  silencio.load();
+                  silencio = null;
+                };
+                const callar = () => {
+                  if (fuente) { fuente.onended = null; try { fuente.stop(); } catch (e) {} fuente = null; }
+                  soltar();
+                };
+                return {
+                  // La locución de un gol: la frase de su momento o, en uno de
+                  // cada cuatro goles de los momentos menores, una ultracorta
+                  // (corto_<n>). Se guarda por gol (clave) para que repintar la
+                  // tarjeta no la cambie.
+                  elegir(loc, clave, cuantos) {
+                    if (elegida && elegida.clave === clave) return elegida.ruta;
+                    const tipo = loc.split('_')[0];
+                    if (!cuantos[tipo]) return null;
+                    const menor = ['normal', 'desempata', 'recorta', 'escapa', 'racha', 'corta'].includes(tipo);
+                    const ruta = menor && ++menores % 4 === 0
+                      ? `locutor/corto_${sacar('corto', cuantos.corto)}`
+                      : `locutor/${loc}_${sacar(tipo, cuantos[tipo])}`;
+                    elegida = { clave, ruta };
+                    return ruta;
+                  },
+                  async decir(url, clave) {
+                    if (clave === ultima) return;
+                    ultima = clave;
+                    callar();
+                    try {
+                      silencio = new Audio('/local/futbolin/sonidos/silencio.mp3');
+                      silencio.loop = true;
+                      silencio.play().catch(() => {});
+                      ctx = ctx || new AudioContext();
+                      if (ctx.state === 'suspended') await ctx.resume();
+                      const buffer = decodificados[url] ||
+                        (decodificados[url] = await ctx.decodeAudioData(await (await fetch(url)).arrayBuffer()));
+                      // medio segundo para que Android baje la música antes de hablar
+                      await new Promise(r => setTimeout(r, 500));
+                      if (clave !== ultima) return;
+                      const f = ctx.createBufferSource();
+                      f.buffer = buffer;
+                      f.connect(ctx.destination);
+                      f.onended = () => { if (fuente === f) { fuente = null; soltar(); } };
+                      fuente = f;
+                      f.start();
+                    } catch (e) {
+                      console.warn('futbolín: no suena', url, e);
+                      if (clave === ultima) callar();
+                    }
+                  },
+                };
+              })());
+
+              const ug = states['sensor.futbolin_ultimo_gol'];
+              const ini = Date.parse((states['sensor.futbolin_inicio'] || {}).state) || 0;
+              const momentoGol = ug ? parseFloat(ug.attributes.momento) * 1000 || 0 : 0;
+              const decir = (ruta, momento) => { L.decir(`/local/futbolin/sonidos/${ruta}.mp3?v=2`, momento); return ''; };
+              if (ini > momentoGol && Date.now() - ini < 15000)
+                return decir(`locutor/inicio_${1 + Math.floor(ini) % 12}`, ini);  // CUANTOS.inicio de locutor.py
+              if (!ug || !['a', 'b'].includes(ug.state)) return '';
+              const momento = parseFloat(ug.attributes.momento) * 1000;
+              if (Date.now() - momento > 15000) return '';
+              const e = ug.state, f = ug.attributes.fase || '';
+              // El locutor: el momento lo calcula el paquete (atributo `locutor`)
+              // y aquí se elige una de sus frases sin repetir (L.elegir). Cuántas
+              // hay de cada momento: CUANTOS de locutor/locutor.py (el ?v=2 de
+              // arriba es para que la tablet no siga con MP3 antiguos de la caché
+              // que tengan los mismos nombres: súbelo si los regeneras).
+              const CUANTOS = { normal: 45, primero: 8, empate: 4, remontada: 8, bola: 4, buena: 6, fin: 4, goleada: 5,
+                                salva: 4, estreno: 4, escapa: 4, racha: 3, corta: 4, recorta: 6, desempata: 6, corto: 10 };
+              const ruta = L.elegir(ug.attributes.locutor || '', momento, CUANTOS);
+              if (ruta) return decir(ruta, momento);
+              const nombre = f === `fin_${e}` ? `fin_${e}`
+                           : f === 'la_buena' ? `gol_${e}_buena`
+                           : f === `bola_partido_${e}` ? `gol_${e}_bola`
+                           : `gol_${e}`;
+              return decir(nombre, momento);
+            ]]]
+
+          # Simulación: prueba el marcador, el locutor y la voz con el futbolín
+          # apagado (paquete futbolin_simulacion). Encendida, se ve en ámbar.
+          simular:
+            card:
+              type: custom:button-card
+              entity: input_boolean.futbolin_simulacion
+              show_icon: true
+              show_state: false
+              icon: mdi:controller
+              name: "[[[ return states['input_boolean.futbolin_simulacion']?.state === 'on' ? 'Simulando' : 'Simular' ]]]"
+              tap_action:
+                action: toggle
+              hold_action:
+                action: none
+              styles:
+                card:
+                  - height: 34px
+                  - padding: 0 14px
+                  - border-radius: 999px
+                  - box-shadow: none
+                  - background: "[[[ return states['input_boolean.futbolin_simulacion']?.state === 'on' ? 'rgba(255,159,26,.16)' : 'rgba(255,255,255,.04)' ]]]"
+                  - border: "[[[ return states['input_boolean.futbolin_simulacion']?.state === 'on' ? '1px solid rgba(255,159,26,.6)' : '1px solid rgba(255,255,255,.12)' ]]]"
+                  - color: "[[[ return states['input_boolean.futbolin_simulacion']?.state === 'on' ? '#ff9f1a' : '#8a94a6' ]]]"
+                grid:
+                  - grid-template-areas: '"i n"'
+                  - grid-template-columns: 22px auto
+                  - column-gap: 6px
+                icon:
+                  - width: 18px
+                  - color: inherit
+                name:
+                  - font-size: 14px
+                  - font-weight: 600
+                  - color: inherit
+          menos_a:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: "−1"
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: gol_a_menos
+          mas_a:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: +1 GOL
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: gol_a_mas
+              styles:
+                card:
+                  - color: "#f6f3ea"
+                  - border: 1px solid rgba(255,250,235,.25)
+          nueva:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: NUEVA
+              # Toque y confirmación: el «mantén pulsado» no respondía en la tablet
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: nueva
+                confirmation:
+                  text: ¿Empezar una partida nueva? Se pierde la actual.
+              styles:
+                card:
+                  - color: "#e9edf3"
+          anular:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: ANULAR
+              # Toque y confirmación: el «mantén pulsado» no respondía en la tablet
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: anular
+                confirmation:
+                  text: ¿Anular la partida?
+              styles:
+                card:
+                  - color: "#e9edf3"
+          luces:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              entity: switch.futbolin_efectos_luz
+              show_name: false
+              show_icon: true
+              # states[] y no entity: las plantillas de las tarjetas anidadas las
+              # evalúa la tarjeta de fuera, que no tiene entity
+              icon: "[[[ return states['switch.futbolin_efectos_luz']?.state === 'off' ? 'mdi:lightbulb-off-outline' : 'mdi:lightbulb-auto' ]]]"
+              tap_action:
+                action: toggle
+              styles:
+                card:
+                  - height: 64px
+                  - border-radius: 50%
+                icon:
+                  - width: 30px
+                  - color: "[[[ return states['switch.futbolin_efectos_luz']?.state === 'off' ? '#ff9f1a' : '#e9edf3' ]]]"
+          # La música de las partidas (Spotify en la tablet): la pone o la quita
+          musica:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              entity: media_player.spotify
+              show_name: false
+              show_icon: true
+              icon: "[[[ return variables.m.musica ? 'mdi:music' : 'mdi:music-off' ]]]"
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_musica
+                data:
+                  accion: alternar
+              styles:
+                card:
+                  - height: 64px
+                  - border-radius: 50%
+                icon:
+                  - width: 30px
+                  - color: "[[[ return variables.m.musica ? '#34d17a' : '#8a94a6' ]]]"
+          # Las tiras del futbolín (WLED): abre su diálogo de brillo y color. Va
+          # en la barra, junto a SALIR, para que esté también en reposo
+          tiras:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              entity: light.futbolin_tiras
+              show_name: false
+              show_icon: true
+              icon: mdi:led-strip-variant
+              tap_action:
+                action: more-info
+              styles:
+                card:
+                  - height: 40px
+                  - border-radius: 50%
+                  - border: 1px solid rgba(255,255,255,.25)
+                icon:
+                  - width: 24px
+                  - color: "[[[ return states['light.futbolin_tiras']?.state === 'on' ? '#ff9f1a' : '#8a94a6' ]]]"
+          # Sale del marcador a la página de siempre de la tablet (y para la música)
+          salir:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: SALIR
+              show_icon: true
+              icon: mdi:exit-to-app
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_cerrar_marcador
+              styles:
+                card:
+                  - height: 40px
+                  - border-radius: 999px
+                  - color: "#e9edf3"
+                  - border: 1px solid rgba(255,255,255,.25)
+                grid:
+                  - grid-template-areas: '"i n"'
+                  - grid-template-columns: 24px auto
+                  - column-gap: 8px
+                icon:
+                  - width: 22px
+                  - color: inherit
+                name:
+                  - font-size: 20px
+          mas_b:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: +1 GOL
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: gol_b_mas
+              styles:
+                card:
+                  - color: "#3d8bff"
+                  - border: 1px solid rgba(61,139,255,.35)
+          menos_b:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: "−1"
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: gol_b_menos
+          # El botón grande de las pantallas de reposo y de final
+          empezar:
+            card:
+              type: custom:button-card
+              template: futbolin_mando
+              name: NUEVA PARTIDA
+              tap_action:
+                action: perform-action
+                perform_action: script.futbolin_accion
+                data:
+                  accion: nueva
+              styles:
+                card:
+                  - background: linear-gradient(90deg, rgba(255,250,235,.16), rgba(61,139,255,.22))
+                  - border: 1px solid rgba(255,255,255,.25)
+                  - color: "#fff"
+
+        styles:
+          # El escenario mide 1280x800 (la tablet) y se escala para caber en la ventana
+          card:
+            - width: 1280px
+            - height: 800px
+            - padding: 0
+            - border: none
+            - border-radius: 0
+            - overflow: hidden
+            - cursor: default
+            - transform-origin: 0 0
+            - transform: |
+                [[[
+                  const arriba = Math.max(0, this.getBoundingClientRect ? this.getBoundingClientRect().top : 0);
+                  const alto = window.innerHeight - arriba;
+                  const s = Math.min(window.innerWidth / 1280, alto / 800);
+                  return `translateX(${Math.max(0, (window.innerWidth - 1280 * s) / 2)}px) scale(${s})`;
+                ]]]
+            - background: >-
+                radial-gradient(ellipse 60% 50% at 25% 45%, rgba(255,250,235,.05), transparent 70%),
+                radial-gradient(ellipse 60% 50% at 75% 45%, rgba(61,139,255,.07), transparent 70%),
+                #06080c
+            - color: "#e9edf3"
+            - font-family: Inter, Roboto, system-ui, sans-serif
+          grid:
+            - display: block
+          custom_fields:
+            base: [position: absolute, left: 0, top: 0, width: 1280px, height: 800px, z-index: 1]
+            digito_a: [position: absolute, left: 154px, top: 212px, z-index: 2]
+            digito_b: [position: absolute, left: 852px, top: 212px, z-index: 2]
+            buena: [position: absolute, left: 0, top: 0, width: 1280px, height: 800px, z-index: 5, pointer-events: none]
+            capa: [position: absolute, left: 0, top: 56px, width: 1280px, height: 624px, z-index: 10]
+            gol: [position: absolute, left: 0, top: 0, width: 1280px, height: 800px, z-index: 30, pointer-events: none]
+            sonido: [position: absolute, left: 0, top: 0, width: 0, height: 0, overflow: hidden]
+            simular: [position: absolute, left: 565px, top: 11px, width: 150px, z-index: 40]
+            menos_a:
+              - position: absolute
+              - left: 24px
+              - top: 688px
+              - width: 131px
+              - z-index: 20
+              - display: "[[[ return variables.m.disponible && variables.m.fase !== 'reposo' ? 'block' : 'none' ]]]"
+            mas_a:
+              - position: absolute
+              - left: 167px
+              - top: 688px
+              - width: 237px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            nueva:
+              - position: absolute
+              - left: 422px
+              - top: 688px
+              - width: 136px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            anular:
+              - position: absolute
+              - left: 570px
+              - top: 688px
+              - width: 136px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            musica:
+              - position: absolute
+              - left: 718px
+              - top: 701px
+              - width: 64px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            salir: [position: absolute, left: 1150px, top: 8px, width: 110px, z-index: 40]
+            tiras: [position: absolute, left: 1098px, top: 8px, width: 40px, z-index: 40]
+            luces:
+              - position: absolute
+              - left: 794px
+              - top: 701px
+              - width: 64px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            mas_b:
+              - position: absolute
+              - left: 876px
+              - top: 688px
+              - width: 237px
+              - z-index: 20
+              - display: "[[[ return variables.m.enJuego ? 'block' : 'none' ]]]"
+            menos_b:
+              - position: absolute
+              - left: 1125px
+              - top: 688px
+              - width: 131px
+              - z-index: 20
+              - display: "[[[ return variables.m.disponible && variables.m.fase !== 'reposo' ? 'block' : 'none' ]]]"
+            empezar:
+              - position: absolute
+              - left: 450px
+              - top: "[[[ return variables.m.fin ? '532px' : '420px' ]]]"
+              - width: 380px
+              - z-index: 15
+              - display: "[[[ return variables.m.disponible && (variables.m.fin || variables.m.fase === 'reposo') ? 'block' : 'none' ]]]"
+
+        extra_styles: |
+          :host {
+            --fondo-2: #0d1117;
+            --linea: rgba(255,255,255,.08);
+            --texto: #e9edf3;
+            --texto-suave: #8a94a6;
+            --apagado: rgba(255,255,255,.045);
+            --madrid: #f6f3ea;
+            --madrid-brillo: rgba(255,250,235,.55);
+            --madrid-oro: #d8b45a;
+            --barcelona: #3d8bff;
+            --barcelona-brillo: rgba(61,139,255,.6);
+            --barcelona-grana: #e0174f;
+            --aviso: #ff9f1a;
+            --error: #ff3b3b;
+            --ok: #34d17a;
+            --display: "Big Shoulders Display", "Oswald", Impact, sans-serif;
+          }
+          #container { display: block !important; }
+          /* Las button-cards anidadas llevan en línea «max-width: fit-content»:
+             sin esto no se estiran al ancho de su campo */
+          #menos_a > button-card, #mas_a > button-card, #nueva > button-card, #anular > button-card,
+          #luces > button-card, #mas_b > button-card, #menos_b > button-card, #empezar > button-card,
+          #musica > button-card, #salir > button-card, #tiras > button-card {
+            display: block; width: 100% !important; max-width: none !important; }
+
+          /* ---------- Barra de estado ---------- */
+          .barra { position: absolute; left: 0; top: 0; width: 1280px; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 198px 0 24px; box-sizing: border-box; border-bottom: 1px solid var(--linea); }
+          .marca { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .12em; color: var(--texto-suave); }
+          .marca b { color: var(--texto); }
+          .chips { display: flex; gap: 10px; }
+          .chip { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--fondo-2); border: 1px solid var(--linea); font-weight: 600; font-size: 15px; color: var(--texto-suave); }
+          .chip ha-icon { --mdc-icon-size: 18px; }
+          .chip.ok { color: var(--ok); }
+          .chip.aviso { color: var(--aviso); border-color: rgba(255,159,26,.4); }
+          .chip.error { color: #fff; background: var(--error); border-color: var(--error); animation: latido 1s infinite; }
+
+          /* ---------- Paneles de los equipos ---------- */
+          .equipo { position: absolute; top: 74px; width: 534px; height: 596px; box-sizing: border-box; border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; align-items: center; background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.01)); border: 2px solid var(--linea); transition: opacity .4s, filter .4s, border-color .4s; }
+          .equipo.a { left: 24px; }
+          .equipo.b { left: 722px; background: linear-gradient(180deg, rgba(61,139,255,.07), rgba(0,0,0,.3)); }
+          .equipo::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 10px; }
+          .equipo.a::before { background: linear-gradient(90deg, var(--madrid) 0 82%, var(--madrid-oro) 82% 100%); }
+          .equipo.b::before { background: linear-gradient(90deg, var(--barcelona) 0 50%, var(--barcelona-grana) 50% 100%); }
+          .marca-agua { position: absolute; left: 50%; top: 56%; transform: translate(-50%,-50%); height: 78%; opacity: .05; pointer-events: none; }
+          .cabecera { margin-top: 22px; display: flex; align-items: center; gap: 16px; position: relative; }
+          .escudo { height: 62px; width: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+          .nombre { font-family: var(--display); font-weight: 900; font-size: 46px; letter-spacing: .08em; text-transform: uppercase; line-height: 1; }
+          .equipo.a .nombre { color: var(--madrid); }
+          .equipo.b .nombre { color: var(--barcelona); }
+          .cinta { height: 34px; margin-top: 10px; padding: 0 16px; border-radius: 17px; font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .14em; display: flex; align-items: center; opacity: 0; color: #000; }
+          .equipo.a .cinta { background: var(--madrid); }
+          .equipo.b .cinta { background: var(--barcelona); }
+          .equipo.partido .cinta { opacity: 1; animation: latido 1.2s infinite; }
+          .equipo.a.partido { border-color: var(--madrid); box-shadow: 0 0 40px rgba(255,250,235,.15) inset; }
+          .equipo.b.partido { border-color: var(--barcelona); box-shadow: 0 0 40px rgba(61,139,255,.2) inset; }
+          .equipo.pierde { opacity: .35; filter: saturate(.3); }
+          .la-buena .equipo { border-color: var(--madrid-oro); }
+
+          /* ---------- Dígitos de matriz de puntos 8x13 ---------- */
+          .digito { display: grid; grid-template-columns: repeat(8, 29px); grid-template-rows: repeat(13, 29px); gap: 6px; }
+          .digito i { border-radius: 50%; background: var(--apagado); }
+          .digito.a i.on { background: var(--madrid); box-shadow: 0 0 9px var(--madrid-brillo); animation: enciende .3s var(--d) both; }
+          .digito.b i.on { background: var(--barcelona); box-shadow: 0 0 10px var(--barcelona-brillo); animation: enciende .3s var(--d) both; }
+
+          /* ---------- Columna de las 11 bolas ---------- */
+          .bolas { position: absolute; left: 576px; top: 74px; width: 128px; height: 596px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+          .fase { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .12em; line-height: 1.05; color: var(--texto-suave); text-align: center; margin-bottom: 8px; min-height: 48px; }
+          .fase b { display: block; font-size: 34px; color: var(--texto); letter-spacing: .04em; }
+          .la-buena .fase, .la-buena .fase b { color: var(--madrid-oro); }
+          .bola { width: 38px; height: 38px; border-radius: 50%; flex: none; box-sizing: border-box; border: 2px solid rgba(255,255,255,.14); position: relative; }
+          .bola.a { background: radial-gradient(circle at 35% 30%, #fff, #d9d4c6); border-color: var(--madrid-oro); }
+          .bola.b { background: radial-gradient(circle at 35% 30%, #ff6b74, #c40012 60%, #3a0005); border-color: #000; }
+          .bola.siguiente { border-color: rgba(255,255,255,.55); border-style: dashed; animation: gira 6s linear infinite; }
+          .bola.buena { width: 46px; height: 46px; margin-top: 6px; border-color: var(--madrid-oro); }
+          .bola.buena::after { content: "LB"; position: absolute; inset: 0; display: grid; place-items: center; font: 700 14px var(--display); color: var(--madrid-oro); }
+          .bola.buena.a::after, .bola.buena.b::after { content: ""; }
+          .la-buena .bola.buena { animation: corazon-bola 1.1s infinite; border-width: 3px; }
+
+          /* ---------- La buena ---------- */
+          .latido { position: absolute; left: 0; top: 56px; width: 1280px; height: 624px; box-shadow: 0 0 160px rgba(216,180,90,.25) inset; animation: corazon 1.1s infinite; }
+          .banda-buena { position: absolute; left: 50%; top: 52%; padding: 14px 54px; border-radius: 10px; background: linear-gradient(90deg, var(--madrid) 0 50%, var(--barcelona) 50% 100%); font-family: var(--display); font-weight: 900; font-size: 120px; line-height: 1; letter-spacing: .06em; color: #000; white-space: nowrap; box-shadow: 0 20px 80px rgba(0,0,0,.8), 0 0 0 6px var(--madrid-oro); animation: cartel 3.8s forwards; }
+          .banda-buena small { display: block; font-size: 26px; letter-spacing: .3em; text-align: center; margin-top: 6px; font-weight: 700; }
+
+          /* ---------- Capas: reposo, final, apagado ---------- */
+          .capa { position: absolute; inset: 0; overflow: hidden; text-align: center; animation: aparece-capa .4s both; }
+          .capa > * { position: absolute; left: 0; right: 0; margin: auto; }
+          .capa.reposo { background: rgba(4,6,10,.85); }
+          .capa.apagado { background: rgba(4,6,10,.94); }
+          .capa.fin { background: rgba(4,6,10,.92); }
+          .titular { font-family: var(--display); font-weight: 900; font-size: 110px; line-height: .95; letter-spacing: .02em; color: var(--texto); }
+          .titular em { font-style: normal; border-bottom: 12px solid; border-image: linear-gradient(90deg, var(--madrid) 0 50%, var(--barcelona) 50% 100%) 1; }
+          .pista { font-size: 22px; color: var(--texto-suave); }
+          .pista b { color: var(--texto); }
+          .reposo .titular { top: 150px; }
+          .reposo .pista { top: 300px; }
+          .apagado ha-icon { top: 150px; --mdc-icon-size: 80px; color: var(--texto-suave); width: 80px; }
+          .apagado .titular { top: 250px; }
+          .apagado .pista { top: 350px; }
+          .escudo-fin { top: 18px; height: 150px; animation: flota 3s ease-in-out infinite; }
+          .gana { top: 182px; font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: .3em; color: var(--texto-suave); }
+          .ganador { top: 222px; font-family: var(--display); font-weight: 900; font-size: 110px; line-height: 1; text-transform: uppercase; letter-spacing: .03em; }
+          .fin.a .ganador { color: var(--madrid); text-shadow: 0 0 40px var(--madrid-brillo); }
+          .fin.b .ganador { color: var(--barcelona); text-shadow: 0 0 40px var(--barcelona-brillo); }
+          .resultado { top: 338px; font-family: var(--display); font-weight: 700; font-size: 64px; letter-spacing: .1em; }
+          .fin .pista { top: 430px; }
+          .capa .confeti { position: absolute; top: -20px; right: auto; margin: 0; width: 12px; height: 20px; border-radius: 2px; animation: cae linear infinite; will-change: transform; }
+
+          /* ---------- ¡GOL! ---------- */
+          .capa-gol { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; animation: gol 2.6s forwards; }
+          .capa-gol::before { content: ""; position: absolute; inset: -50%; background: repeating-conic-gradient(from 0deg, rgba(0,0,0,.05) 0 10deg, transparent 10deg 20deg); animation: gira 8s linear infinite; }
+          .capa-gol.a { background: radial-gradient(circle, #fff 0%, #ece6d4 70%); color: #111; }
+          .capa-gol.b { background: radial-gradient(circle, #ff2a38 0%, #b0000d 75%); color: #000; }
+          .escudo-gol { position: relative; height: 170px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.35)); animation: entra-escudo .6s cubic-bezier(.2,1.6,.4,1) both; }
+          .texto-gol { position: relative; font-family: var(--display); font-weight: 900; font-size: 240px; line-height: .85; animation: entra .5s cubic-bezier(.2,1.6,.4,1) both; }
+          .capa-gol.a .texto-gol { text-shadow: 6px 6px 0 var(--madrid-oro); }
+          .capa-gol.b .texto-gol { text-shadow: 6px 6px 0 rgba(255,255,255,.25); }
+          .quien { position: relative; font-family: var(--display); font-weight: 700; font-size: 54px; letter-spacing: .2em; }
+
+          /* ---------- Animaciones ---------- */
+          @keyframes latido { 50% { opacity: .55; } }
+          @keyframes gira { to { transform: rotate(360deg); } }
+          @keyframes enciende { from { background: var(--apagado); box-shadow: none; } }
+          @keyframes corazon { 0%,100% { opacity: .5; } 15% { opacity: 1; } 30% { opacity: .6; } 45% { opacity: .95; } }
+          @keyframes corazon-bola { 0%,100% { transform: scale(1); } 15%,45% { transform: scale(1.18); box-shadow: 0 0 30px rgba(216,180,90,.8); } }
+          @keyframes cartel {
+            0% { opacity: 0; transform: translate(-50%,-50%) rotate(-4deg) scale(.6); }
+            10%, 85% { opacity: 1; transform: translate(-50%,-50%) rotate(-4deg) scale(1); }
+            100% { opacity: 0; visibility: hidden; transform: translate(-50%,-50%) rotate(-4deg) scale(1); }
+          }
+          @keyframes gol { 0% { opacity: 0; } 8%, 85% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+          @keyframes entra { from { transform: scale(.4); } }
+          @keyframes entra-escudo { from { transform: scale(.3) rotate(-20deg); } }
+          @keyframes aparece-capa { from { opacity: 0; } }
+          @keyframes flota { 50% { transform: translateY(-8px) rotate(2deg); } }
+          @keyframes cae { to { transform: translateY(660px) rotate(720deg); } }
+
+  # ---------------------------------------------------------------------------
+  # Depuración: barreras y diagnóstico del ESP32 mientras se juega. «Último corte» deja en el registro cada
+  # corte del haz con su duración y si ha contado como gol, como ruido (más
+  # corto que el mínimo) o como rebote (dentro del bloqueo de 400 ms).
+  # ---------------------------------------------------------------------------
+  - title: Depuración
+    path: depuracion
+    icon: mdi:bug-outline
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Cortes del haz
+          - type: logbook
+            target:
+              entity_id:
+                - sensor.futbolin_ultimo_corte
+                - sensor.futbolin_fase
+            hours_to_show: 4
+            grid_options:
+              columns: full
+              rows: 8
+          - type: history-graph
+            title: Duración de cada corte (ms)
+            hours_to_show: 2
+            entities:
+              - entity: sensor.futbolin_corte_a
+                name: Madrid (A)
+              - entity: sensor.futbolin_corte_b
+                name: Barcelona (B)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Barreras
+          - type: entities
+            entities:
+              - entity: binary_sensor.futbolin_haz_a
+                name: Haz A (on = tapado)
+              - entity: binary_sensor.futbolin_haz_b
+                name: Haz B (on = tapado)
+              - binary_sensor.futbolin_atasco_a
+              - binary_sensor.futbolin_atasco_b
+              - sensor.futbolin_corte_a
+              - sensor.futbolin_corte_b
+              - sensor.futbolin_ruido_a
+              - sensor.futbolin_ruido_b
+              - sensor.futbolin_rebotes_a
+              - sensor.futbolin_rebotes_b
+              - binary_sensor.futbolin_autotest
+              - sensor.futbolin_autotest_detalle
+              - button.futbolin_autotest
+          - type: history-graph
+            title: Haces (tapado / libre)
+            hours_to_show: 1
+            entities:
+              - binary_sensor.futbolin_haz_a
+              - binary_sensor.futbolin_haz_b
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Luces
+          # Efectos apagados: el ESP32 no lanza efectos (y apaga las tiras)
+          - type: tile
+            entity: switch.futbolin_efectos_luz
+            name: Efectos de luz
+          - type: tile
+            entity: light.futbolin_tiras
+            name: Tiras
+            features: [{type: light-brightness}]
+          - type: tile
+            entity: light.futbolin_tiras_tira_a
+            name: Tira A
+          - type: tile
+            entity: light.futbolin_tiras_tira_b
+            name: Tira B
+          # Por debajo de este % de batería el ESP32 corta las tiras
+          - type: tile
+            entity: number.futbolin_luces_bateria_minima
+            name: Batería mínima para luces
+            features: [{type: numeric-input, style: buttons}]
+          - type: tile
+            entity: binary_sensor.futbolin_luces_cortadas_por_bateria
+            name: Luces cortadas por batería
+            color: red
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Partida y ESP32
+          - type: entities
+            entities:
+              - sensor.futbolin_goles_a
+              - sensor.futbolin_goles_b
+              - sensor.futbolin_fase
+              - sensor.futbolin_secuencia
+              - button.futbolin_nueva_partida
+              - button.futbolin_anular_partida
+              - button.futbolin_gol_a_mas
+              - button.futbolin_gol_a_menos
+              - button.futbolin_gol_b_mas
+              - button.futbolin_gol_b_menos
+          - type: entities
+            entities:
+              - sensor.futbolin_bateria_voltios
+              - sensor.futbolin_bateria
+              - switch.futbolin_modo_enchufado
+              - switch.futbolin_efectos_luz
+              - sensor.futbolin_senal_wifi
+              - sensor.futbolin_encendido
+              - sensor.futbolin_ip
+              - button.futbolin_reiniciar

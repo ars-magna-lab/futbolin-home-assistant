@@ -1,0 +1,144 @@
+# Futbolín · simulación y marcador que ve el dashboard
+#
+# Para probar el marcador, el locutor y la voz con el futbolín apagado. Con
+# input_boolean.futbolin_simulacion encendido, los goles salen de dos
+# input_number y la fase se calcula aquí con las reglas de casa (gana quien
+# llega a 6, 5-5 = la buena); apagado, todo viene del ESP32.
+#
+# El dashboard, la secuencia de las bolas, el último gol (animación y locutor)
+# y las frases de voz leen siempre los sensores «Futbolín marcador A / B /
+# fase» de este paquete, y mandan las acciones (+1, −1, nueva, anular) a
+# script.futbolin_accion, que en simulación cambia los goles simulados y si no
+# pulsa el botón del ESP32. Así la simulación prueba lo mismo que una partida.
+#
+# Sin simulación, los tres sensores solo están disponibles con el futbolín vivo
+# (binary_sensor.futbolin_vivo, el latido de futbolin.yaml): así el dashboard
+# ve el apagado en unos 15 s y no en los 90 s de la API de ESPHome.
+#
+# El ESP32 no se entera de la simulación: si está encendido, sigue contando
+# por su cuenta (y sus goles no se ven mientras la simulación esté puesta).
+
+input_boolean:
+  futbolin_simulacion:
+    name: Futbolín simulación
+    icon: mdi:controller
+  futbolin_sim_partida:
+    name: Futbolín simulación partida empezada
+    icon: mdi:soccer
+
+input_number:
+  futbolin_sim_goles_a:
+    name: Futbolín simulación goles A
+    min: 0
+    max: 6
+    step: 1
+    mode: box
+  futbolin_sim_goles_b:
+    name: Futbolín simulación goles B
+    min: 0
+    max: 6
+    step: 1
+    mode: box
+
+template:
+  - sensor:
+      - name: Futbolín marcador A
+        unique_id: futbolin_marcador_a
+        icon: mdi:soccer
+        availability: >-
+          {{ is_state('input_boolean.futbolin_simulacion', 'on')
+             or (is_state('binary_sensor.futbolin_vivo', 'on')
+                 and states('sensor.futbolin_goles_a') not in ['unavailable', 'unknown']) }}
+        state: >-
+          {{ states('input_number.futbolin_sim_goles_a') | int(0)
+             if is_state('input_boolean.futbolin_simulacion', 'on')
+             else states('sensor.futbolin_goles_a') | int(0) }}
+      - name: Futbolín marcador B
+        unique_id: futbolin_marcador_b
+        icon: mdi:soccer
+        availability: >-
+          {{ is_state('input_boolean.futbolin_simulacion', 'on')
+             or (is_state('binary_sensor.futbolin_vivo', 'on')
+                 and states('sensor.futbolin_goles_b') not in ['unavailable', 'unknown']) }}
+        state: >-
+          {{ states('input_number.futbolin_sim_goles_b') | int(0)
+             if is_state('input_boolean.futbolin_simulacion', 'on')
+             else states('sensor.futbolin_goles_b') | int(0) }}
+      # Las mismas fases que publica el ESP32 (docs/README.md)
+      - name: Futbolín marcador fase
+        unique_id: futbolin_marcador_fase
+        icon: mdi:scoreboard-outline
+        availability: >-
+          {{ is_state('input_boolean.futbolin_simulacion', 'on')
+             or (is_state('binary_sensor.futbolin_vivo', 'on')
+                 and states('sensor.futbolin_fase') not in ['unavailable', 'unknown']) }}
+        state: >-
+          {% if is_state('input_boolean.futbolin_simulacion', 'on') %}
+            {% set a = states('input_number.futbolin_sim_goles_a') | int(0) %}
+            {% set b = states('input_number.futbolin_sim_goles_b') | int(0) %}
+            {% if is_state('input_boolean.futbolin_sim_partida', 'off') %}reposo
+            {% elif a >= 6 %}fin_a
+            {% elif b >= 6 %}fin_b
+            {% elif a == 5 and b == 5 %}la_buena
+            {% elif a == 5 %}bola_partido_a
+            {% elif b == 5 %}bola_partido_b
+            {% else %}normal{% endif %}
+          {% else %}{{ states('sensor.futbolin_fase') }}{% endif %}
+
+script:
+  futbolin_accion:
+    alias: Futbolín · acción del marcador
+    description: >-
+      Nueva partida, anular, +1 o −1 a un equipo. En simulación cambia los
+      goles simulados (como el ESP32: tras el sexto gol no suma); si no, pulsa
+      el botón del ESP32.
+    mode: queued
+    fields:
+      accion:
+        name: Acción
+        description: nueva, anular, gol_a_mas, gol_a_menos, gol_b_mas o gol_b_menos
+        required: true
+        selector:
+          select:
+            options: [nueva, anular, gol_a_mas, gol_a_menos, gol_b_mas, gol_b_menos]
+    sequence:
+      - if: "{{ is_state('input_boolean.futbolin_simulacion', 'off') }}"
+        then:
+          - action: button.press
+            target:
+              entity_id: >-
+                {{ {'nueva': 'button.futbolin_nueva_partida', 'anular': 'button.futbolin_anular_partida'}
+                   .get(accion, 'button.futbolin_' ~ accion) }}
+        else:
+          - variables:
+              a: "{{ states('input_number.futbolin_sim_goles_a') | int(0) }}"
+              b: "{{ states('input_number.futbolin_sim_goles_b') | int(0) }}"
+              jugando: "{{ is_state('input_boolean.futbolin_sim_partida', 'on') and a < 6 and b < 6 }}"
+          - choose:
+              - conditions: "{{ accion in ['nueva', 'anular'] }}"
+                sequence:
+                  - action: input_number.set_value
+                    target:
+                      entity_id:
+                        - input_number.futbolin_sim_goles_a
+                        - input_number.futbolin_sim_goles_b
+                    data:
+                      value: 0
+                  - action: "input_boolean.turn_{{ 'on' if accion == 'nueva' else 'off' }}"
+                    target:
+                      entity_id: input_boolean.futbolin_sim_partida
+              - conditions: "{{ accion.endswith('_mas') and jugando }}"
+                sequence:
+                  - action: input_number.increment
+                    target:
+                      entity_id: "input_number.futbolin_sim_goles_{{ accion[4] }}"
+              - conditions: "{{ accion.endswith('_menos') and is_state('input_boolean.futbolin_sim_partida', 'on') }}"
+                sequence:
+                  - action: input_number.decrement
+                    target:
+                      entity_id: "input_number.futbolin_sim_goles_{{ accion[4] }}"
+      # Para la presentación del locutor (sensor.futbolin_inicio de futbolin.yaml),
+      # sea de verdad o simulada
+      - if: "{{ accion == 'nueva' }}"
+        then:
+          - event: futbolin_partida_nueva

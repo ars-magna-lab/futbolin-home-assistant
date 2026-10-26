@@ -1,0 +1,597 @@
+# Futbolín · el marcador
+#
+# El futbolín lleva un ESP32 con ESPHome (dispositivo `futbolin`) que cuenta los
+# goles con barreras infrarrojas y lleva la partida él solo: si HA cae, sigue
+# contando. HA solo lo enseña (dashboard /futbolin-marcador) y lo controla
+# (botones y voz). El contrato de entidades está en docs/README.md.
+#
+# Equipo A = Real Madrid, equipo B = FC Barcelona.
+#
+# Los goles y la fase se leen de los sensores «Futbolín marcador» de
+# futbolin_simulacion.yaml, que con la simulación puesta dan los goles
+# simulados y si no los del ESP32.
+#
+# La tablet y la música son ejemplos que hay que adaptar (ver
+# homeassistant/README.md):
+# - Tablet con Kiosk Satellite (o similar) que expone su página actual
+#   (sensor.tablet_current_page), el dashboard que enseña
+#   (select.tablet_dashboard_view), el salvapantallas (switch.tablet_screensaver),
+#   la pantalla (light.tablet_screen), un botón para traerla al frente
+#   (button.tablet_bring_to_front) y una acción para abrir apps
+#   (esphome.ks_tablet_launch_app).
+# - Música: Spotify en la tablet (integración de Spotify, media_player.spotify),
+#   con la tablet como dispositivo de Spotify Connect llamado «Tablet» y una
+#   lista propia. HA la pone al empezar cada partida y la para al acabar; se
+#   quita o se pone con el botón del marcador o por voz. Mientras habla el
+#   locutor, Android la baja sola (el truco está en el dashboard).
+# Si no tienes alguna de estas cosas, quita la automatización o el script que
+# la usa (futbolin_pantalla, futbolin_musica, futbolin_musica_partida) y los
+# botones de música y «Salir» del dashboard.
+#
+# Recargar sin reiniciar:  template.reload, script.reload, input_boolean.reload
+# y automation.reload
+
+input_boolean:
+  # Si suena música en las partidas. El botón del marcador y la voz la cambian
+  futbolin_musica:
+    name: Futbolín música
+    icon: mdi:music
+
+script:
+  futbolin_musica:
+    alias: Futbolín · música
+    description: >-
+      Pone o quita la música de las partidas (Spotify en la tablet). «alternar»
+      la quita si está sonando y si no la pone.
+    mode: queued
+    fields:
+      accion:
+        name: Acción
+        description: poner, quitar o alternar
+        required: true
+        selector:
+          select:
+            options: [poner, quitar, alternar]
+    sequence:
+      # El estado de Spotify al momento: la integración sondea cada 30 s, y
+      # pausar lo que ya está en pausa falla («Restriction violated»)
+      - action: homeassistant.update_entity
+        continue_on_error: true
+        target:
+          entity_id: media_player.spotify
+      - variables:
+          sonando: >-
+            {{ is_state('media_player.spotify', 'playing')
+               and state_attr('media_player.spotify', 'source') == 'Tablet' }}
+          poner: "{{ accion == 'poner' or (accion == 'alternar' and not sonando) }}"
+      - action: "input_boolean.turn_{{ 'on' if poner else 'off' }}"
+        target:
+          entity_id: input_boolean.futbolin_musica
+      - if: "{{ poner and not sonando }}"
+        then:
+          # Con Spotify parado un rato, HA deja de ver la tablet (la lista de
+          # dispositivos se refresca cada pocos minutos) o Android ha cerrado
+          # la app (la tablet va justa de memoria): se recarga la integración
+          # y, si hace falta, se abre Spotify un momento y se vuelve al marcador
+          - if: "{{ 'Tablet' not in (state_attr('media_player.spotify', 'source_list') or []) }}"
+            then:
+              - action: homeassistant.reload_config_entry
+                target:
+                  entity_id: media_player.spotify
+              - wait_template: "{{ 'Tablet' in (state_attr('media_player.spotify', 'source_list') or []) }}"
+                timeout: 10
+          - if: "{{ 'Tablet' not in (state_attr('media_player.spotify', 'source_list') or []) }}"
+            then:
+              - action: esphome.ks_tablet_launch_app
+                data:
+                  package_name: com.spotify.music
+              - delay: 6
+              - action: homeassistant.reload_config_entry
+                target:
+                  entity_id: media_player.spotify
+              - wait_template: "{{ 'Tablet' in (state_attr('media_player.spotify', 'source_list') or []) }}"
+                timeout: 15
+              - action: button.press
+                target:
+                  entity_id: button.tablet_bring_to_front
+          # Parado del todo, Spotify solo deja elegir salida: al elegir la
+          # tablet queda en pausa allí y ya admite poner una lista
+          - if: "{{ state_attr('media_player.spotify', 'source') != 'Tablet' }}"
+            then:
+              - action: media_player.select_source
+                target:
+                  entity_id: media_player.spotify
+                data:
+                  source: Tablet
+              - delay: 2
+              - action: homeassistant.update_entity
+                target:
+                  entity_id: media_player.spotify
+          - action: media_player.play_media
+            target:
+              entity_id: media_player.spotify
+            data:
+              # Tu lista para las partidas (cambia el id): himnos de estadio,
+              # mundiales y bailables con ritmo
+              media_content_id: spotify:playlist:CAMBIA_POR_EL_ID_DE_TU_LISTA
+              media_content_type: playlist
+          # Aleatorio después de poner la lista: antes no lo aplica a la primera canción
+          - action: media_player.shuffle_set
+            continue_on_error: true
+            target:
+              entity_id: media_player.spotify
+            data:
+              shuffle: true
+      - if: "{{ not poner and sonando }}"
+        then:
+          - action: media_player.media_pause
+            target:
+              entity_id: media_player.spotify
+      # La integración de Spotify sondea cada 30 s: sin esto el botón del
+      # marcador tardaría en enterarse
+      - delay: 1
+      - action: homeassistant.update_entity
+        continue_on_error: true
+        target:
+          entity_id: media_player.spotify
+
+  # El botón «Salir» del marcador y «cierra el marcador»: devuelve la tablet a
+  # su página de siempre. La música la para futbolin_musica_partida al salir
+  # del marcador (pararla también aquí daba dos pausas seguidas, y la segunda
+  # falla con «Restriction violated» y corta el script)
+  futbolin_cerrar_marcador:
+    alias: Futbolín · cerrar el marcador
+    mode: single
+    sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.tablet_dashboard_view
+        data:
+          # La página de siempre de la tablet (cámbiala por la tuya)
+          option: lovelace/0
+
+template:
+  # El orden en que se marcaron los goles, para la columna de las 11 bolas del
+  # dashboard: «abba…» (a = Madrid, b = Barcelona), «-» sin goles. El ESP32 solo
+  # publica los totales, así que se deduce de cómo cambian: +1 añade la letra
+  # del equipo, −1 quita la última suya y 0-0 la vacía. Si algo no cuadra (un
+  # reinicio del ESP32 con el marcador ya restaurado), se rehace con los
+  # totales: el orden se pierde, la cuenta no.
+  - triggers:
+      - trigger: state
+        entity_id:
+          - sensor.futbolin_marcador_a
+          - sensor.futbolin_marcador_b
+        not_to:
+          - unavailable
+          - unknown
+    sensor:
+      - name: Futbolín secuencia
+        unique_id: futbolin_secuencia
+        icon: mdi:soccer
+        state: >-
+          {% set previa = (this.state if this.state not in ['unknown', 'unavailable'] else '') | replace('-', '') %}
+          {% set a = states('sensor.futbolin_marcador_a') | int(0) %}
+          {% set b = states('sensor.futbolin_marcador_b') | int(0) %}
+          {% set equipo = 'a' if trigger.entity_id.endswith('_a') else 'b' %}
+          {% set antes = trigger.from_state.state | int(-1) if trigger.from_state else -1 %}
+          {% set ahora = trigger.to_state.state | int(-1) %}
+          {% if a + b == 0 %}
+            {% set s = '' %}
+          {% elif antes >= 0 and ahora == antes + 1 %}
+            {% set s = previa ~ equipo %}
+          {% elif antes >= 0 and ahora == antes - 1 %}
+            {% set i = previa.rfind(equipo) %}
+            {% set s = previa[:i] ~ previa[i + 1:] if i >= 0 else previa %}
+          {% else %}
+            {% set s = previa %}
+          {% endif %}
+          {% if s.count('a') != a or s.count('b') != b %}
+            {% set s = 'a' * a ~ 'b' * b %}
+          {% endif %}
+          {{ s if s else '-' }}
+
+  # El último gol, para la animación de «¡GOL!» y el sonido del dashboard.
+  # Cuenta cualquier gol que sume uno al marcador: el de las barreras, el +1
+  # del dashboard o el de la voz (las restas no). El atributo `momento` cambia
+  # con cada gol aunque marque dos veces seguidas el mismo equipo, y `fase` es
+  # la que deja ese gol, calculada aquí con el marcador (y no leyendo
+  # sensor.futbolin_fase, que puede llegar del ESP32 un poco después): decide
+  # el sonido (gol, bola de partido para quien marca, la buena o final).
+  - triggers:
+      - trigger: state
+        entity_id:
+          - sensor.futbolin_marcador_a
+          - sensor.futbolin_marcador_b
+        not_from:
+          - unavailable
+          - unknown
+        not_to:
+          - unavailable
+          - unknown
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state.state | int(-1) == trigger.from_state.state | int(-9) + 1 }}"
+    sensor:
+      - name: Futbolín último gol
+        unique_id: futbolin_ultimo_gol
+        icon: mdi:soccer-field
+        state: "{{ 'a' if trigger.entity_id.endswith('_a') else 'b' }}"
+        attributes:
+          momento: "{{ now().timestamp() }}"
+          fase: >-
+            {% set e = 'a' if trigger.entity_id.endswith('_a') else 'b' %}
+            {% set a = states('sensor.futbolin_marcador_a') | int(0) %}
+            {% set b = states('sensor.futbolin_marcador_b') | int(0) %}
+            {% set propios = a if e == 'a' else b %}
+            {% if propios >= 6 %}fin_{{ e }}
+            {% elif a == 5 and b == 5 %}la_buena
+            {% elif propios == 5 %}bola_partido_{{ e }}
+            {% else %}normal{% endif %}
+          # Qué locución pone el dashboard (www/futbolin/sonidos/locutor/, las
+          # genera locutor/locutor.py): el momento, quién marca y, si la frase lo
+          # dice, el marcador A-B. Remontada: iba perdiendo de dos o más y este
+          # gol es el que lo pone por delante (se mira en la secuencia). El orden
+          # es el de momento() en locutor.py. Si la secuencia se rehízo con los
+          # totales (ESP32 reiniciado), racha y corta pueden fallar en ese gol.
+          locutor: >-
+            {% set e = 'a' if trigger.entity_id.endswith('_a') else 'b' %}
+            {% set a = states('sensor.futbolin_marcador_a') | int(0) %}
+            {% set b = states('sensor.futbolin_marcador_b') | int(0) %}
+            {% set propios, rival = (a, b) if e == 'a' else (b, a) %}
+            {% set marcador = a ~ '-' ~ b %}
+            {% set s = states('sensor.futbolin_secuencia') | replace('-', '') %}
+            {% if s.count('a') != a or s.count('b') != b %}{% set s = s ~ e %}{% endif %}
+            {% set ns = namespace(pa=0, pb=0, peor=0) %}
+            {% for c in s[:-1] %}
+              {% if c == 'a' %}{% set ns.pa = ns.pa + 1 %}{% else %}{% set ns.pb = ns.pb + 1 %}{% endif %}
+              {% set d = ns.pa - ns.pb if e == 'a' else ns.pb - ns.pa %}
+              {% if d < ns.peor %}{% set ns.peor = d %}{% endif %}
+            {% endfor %}
+            {% set otro = 'b' if e == 'a' else 'a' %}
+            {% set seguidos = s | length - s.rstrip(e) | length %}
+            {% set previo = s[:-1] %}
+            {% set del_rival = previo | length - previo.rstrip(otro) | length %}
+            {% if propios >= 6 and rival <= 1 %}goleada_{{ e }}_{{ marcador }}
+            {% elif propios >= 6 %}fin_{{ e }}_{{ marcador }}
+            {% elif a == 5 and b == 5 %}buena_{{ e }}
+            {% elif propios == 5 %}bola_{{ e }}_{{ marcador }}
+            {% elif rival == 5 %}salva_{{ e }}
+            {% elif ns.peor <= -2 and propios == rival + 1 %}remontada_{{ e }}
+            {% elif propios == rival %}empate_{{ e }}_{{ marcador }}
+            {% elif a + b == 1 %}primero_{{ e }}
+            {% elif propios == 1 and rival >= 3 %}estreno_{{ e }}
+            {% elif propios - rival == 3 %}escapa_{{ e }}
+            {% elif seguidos >= 3 %}racha_{{ e }}_{{ seguidos }}
+            {% elif del_rival >= 3 %}corta_{{ e }}
+            {% elif rival > propios %}recorta_{{ e }}
+            {% elif propios == rival + 1 %}desempata_{{ e }}
+            {% else %}normal_{{ e }}{% endif %}
+
+  # Si el futbolín está encendido de verdad. Al cortar la corriente la API de
+  # ESPHome tarda unos 90 s en dar el ESP32 por perdido; el tiempo encendido
+  # llega cada 5 s y hace de latido: 15 s sin él es que se ha apagado. Lo usan
+  # los sensores «Futbolín marcador» (futbolin_simulacion.yaml), así que el
+  # dashboard enseña «Futbolín apagado» enseguida.
+  - triggers:
+      - trigger: time_pattern
+        seconds: "/5"
+      - trigger: state
+        entity_id: sensor.futbolin_encendido
+    binary_sensor:
+      - name: Futbolín vivo
+        unique_id: futbolin_vivo
+        device_class: connectivity
+        state: >-
+          {% set e = states.sensor.futbolin_encendido %}
+          {{ e is not none and e.state not in ['unavailable', 'unknown']
+             and (now() - e.last_reported).total_seconds() < 15 }}
+
+  # Cuándo empezó la última partida, para que el dashboard ponga la
+  # presentación del locutor (inicio_<n>.mp3). El evento lo lanza
+  # script.futbolin_accion con cada «nueva», venga del dashboard, de la voz o
+  # del encendido. Una nueva partida pulsada en el ESP32 no lo lanzaría, pero
+  # el futbolín no tiene botones.
+  - triggers:
+      - trigger: event
+        event_type: futbolin_partida_nueva
+    sensor:
+      - name: Futbolín inicio
+        unique_id: futbolin_inicio
+        icon: mdi:whistle
+        state: "{{ now().isoformat() }}"
+        device_class: timestamp
+
+automation:
+  # Con el marcador en la tablet no salta el salvapantallas (que acaba
+  # apagando la pantalla): mientras se juega nadie la toca. Se mira la página
+  # que dice la propia tablet, así vale igual si se abrió por voz o a mano. Al
+  # salir del marcador se vuelve a poner; solo entonces, para no pisar el
+  # salvapantallas si alguien lo cambia a mano con el marcador cerrado.
+  - id: futbolin_pantalla
+    alias: Futbolín · la tablet no se apaga con el marcador abierto
+    mode: restart
+
+    triggers:
+      - trigger: state
+        entity_id: sensor.tablet_current_page
+        not_to:
+          - unavailable
+          - unknown
+
+    variables:
+      ahora: "{{ '/futbolin-marcador' in trigger.to_state.state }}"
+      antes: "{{ trigger.from_state is not none and '/futbolin-marcador' in trigger.from_state.state }}"
+
+    actions:
+      - if: "{{ ahora }}"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.tablet_screensaver
+          - action: light.turn_on
+            target:
+              entity_id: light.tablet_screen
+        else:
+          - if: "{{ antes }}"
+            then:
+              - action: switch.turn_on
+                target:
+                  entity_id: switch.tablet_screensaver
+
+  # Al encender el futbolín con el interruptor general, el marcador sale solo
+  # en la tablet y, si no hay partida, empieza una. El ESP32 arranca siempre
+  # en reposo cuando se enciende; tras un reinicio (OTA, caída de tensión)
+  # sigue con la partida, y entonces solo se abre el marcador. Que lleve poco
+  # encendido distingue el arranque de un reinicio de HA o de un corte de la
+  # WiFi, que también lo dan por «aparecido». La espera deja llegar el resto
+  # de sus entidades. Con la simulación puesta se quita: se juega de verdad.
+  # La partida empieza con el marcador ya abierto (o a los 20 s si la tablet
+  # no responde), para que se oiga la presentación del locutor.
+  - id: futbolin_encendido
+    alias: Futbolín · al encenderlo, el marcador y una partida nueva
+    mode: single
+
+    triggers:
+      - trigger: state
+        entity_id: sensor.futbolin_fase
+        from:
+          - unavailable
+          - unknown
+        not_to:
+          - unavailable
+          - unknown
+
+    actions:
+      - delay: 5
+      - condition: template
+        value_template: "{{ states('sensor.futbolin_encendido') | int(0) < 300 }}"
+      - if: "{{ is_state('input_boolean.futbolin_simulacion', 'on') }}"
+        then:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.futbolin_simulacion
+      - action: select.select_option
+        continue_on_error: true
+        target:
+          entity_id: select.tablet_dashboard_view
+        data:
+          option: futbolin-marcador/marcador
+      - if: "{{ is_state('sensor.futbolin_fase', 'reposo') }}"
+        then:
+          - wait_template: "{{ '/futbolin-marcador' in states('sensor.tablet_current_page') }}"
+            timeout: 20
+          - delay: 2
+          - action: script.futbolin_accion
+            data:
+              accion: nueva
+
+  # La música sigue a la partida: suena al empezar cada una (si no se ha
+  # quitado con el botón o por voz) y sigue entre partidas, que continúe la
+  # fiesta. Se para al apagar el futbolín o al
+  # cerrar el marcador; pararla aquí no cambia input_boolean.futbolin_musica:
+  # la siguiente partida vuelve a sonar.
+  - id: futbolin_musica_partida
+    alias: Futbolín · la música sigue a la partida
+    mode: queued
+
+    triggers:
+      - trigger: event
+        event_type: futbolin_partida_nueva
+        id: empieza
+      # Apagado: un minuto sin ESP32 (no por un corte corto de la WiFi)
+      - trigger: state
+        entity_id: sensor.futbolin_marcador_fase
+        to: unavailable
+        for: "00:01:00"
+        id: acaba
+      - trigger: state
+        entity_id: sensor.tablet_current_page
+        not_to:
+          - unavailable
+          - unknown
+        id: pagina
+
+    actions:
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: empieza
+              - condition: state
+                entity_id: input_boolean.futbolin_musica
+                state: "on"
+            sequence:
+              - action: script.futbolin_musica
+                data:
+                  accion: poner
+          - conditions: >-
+              {{ trigger.id == 'acaba'
+                 or (trigger.id == 'pagina' and '/futbolin-marcador' not in trigger.to_state.state
+                     and trigger.from_state is not none and '/futbolin-marcador' in trigger.from_state.state) }}
+            sequence:
+              - action: homeassistant.update_entity
+                continue_on_error: true
+                target:
+                  entity_id: media_player.spotify
+              - if: >-
+                  {{ is_state('media_player.spotify', 'playing')
+                     and state_attr('media_player.spotify', 'source') == 'Tablet' }}
+                then:
+                  - action: media_player.media_pause
+                    continue_on_error: true
+                    target:
+                      entity_id: media_player.spotify
+                  - delay: 1
+                  - action: homeassistant.update_entity
+                    continue_on_error: true
+                    target:
+                      entity_id: media_player.spotify
+
+  # La voz. Frases propias de HA (disparadores de conversación): la pipeline
+  # de Assist las resuelve en local antes de llamar al LLM (prefer_local_intents),
+  # así que no cuestan nada ni hace falta exponer nada del futbolín a Assist.
+  - id: futbolin_voz
+    alias: Futbolín · frases de voz
+    description: >-
+      Nueva partida, goles y correcciones por equipo, anular, cómo vamos y
+      abrir o cerrar el marcador en la tablet y poner o quitar la música.
+    mode: queued
+
+    triggers:
+      - trigger: conversation
+        command:
+          - "nueva partida"
+          - "empezamos"
+          - "otra partida"
+          - "[vamos a] echar una [partida]"
+          - "echamos una [partida]"
+        id: nueva
+      - trigger: conversation
+        command:
+          - "gol del [real] madrid"
+          - "suma [un gol | uno] al [real] madrid"
+          - "gol de los blancos"
+        id: gol_a
+      - trigger: conversation
+        command:
+          - "gol del (barcelona | barça | barsa)"
+          - "suma [un gol | uno] al (barcelona | barça | barsa)"
+          - "gol de los (culés | azulgranas)"
+        id: gol_b
+      - trigger: conversation
+        command:
+          - "quita [un gol | uno] al [real] madrid"
+          - "ese [gol] no vale [el] del [real] madrid"
+          - "resta [un gol | uno] al [real] madrid"
+        id: quita_a
+      - trigger: conversation
+        command:
+          - "quita [un gol | uno] al (barcelona | barça | barsa)"
+          - "ese [gol] no vale [el] del (barcelona | barça | barsa)"
+          - "resta [un gol | uno] al (barcelona | barça | barsa)"
+        id: quita_b
+      - trigger: conversation
+        command:
+          - "(anula | cancela) la partida"
+        id: anular
+      - trigger: conversation
+        command:
+          - "(cómo | como) vamos"
+          - "(cómo | como) va la partida"
+          - "(cuál | cual) es el marcador"
+        id: marcador
+      - trigger: conversation
+        command:
+          - "(abre | pon | enseña) el marcador"
+        id: abrir
+      - trigger: conversation
+        command:
+          - "(cierra | quita) el marcador"
+        id: cerrar
+      - trigger: conversation
+        command:
+          - "(pon | quiero | dale a) [la] música"
+          - "música"
+        id: musica_poner
+      - trigger: conversation
+        command:
+          - "(quita | para | apaga | pausa) [la] música"
+          - "sin música"
+        id: musica_quitar
+
+    variables:
+      apagado: "{{ states('sensor.futbolin_marcador_fase') in ['unavailable', 'unknown'] }}"
+      # La acción para script.futbolin_accion (paquete futbolin_simulacion): pulsa
+      # el botón del ESP32 o, en simulación, cambia los goles simulados
+      boton: >-
+        {{ {'nueva': 'nueva', 'gol_a': 'gol_a_mas', 'gol_b': 'gol_b_mas',
+            'quita_a': 'gol_a_menos', 'quita_b': 'gol_b_menos', 'anular': 'anular'}.get(trigger.id, '') }}
+
+    actions:
+      - choose:
+          # Un botón del ESP32 con el futbolín apagado (y sin simulación) no hace nada: mejor decirlo
+          - conditions: "{{ boton != '' and apagado }}"
+            sequence:
+              - set_conversation_response: El futbolín está apagado.
+
+          - conditions: "{{ boton != '' }}"
+            sequence:
+              - action: script.futbolin_accion
+                data:
+                  accion: "{{ boton }}"
+              # Al empezar, el marcador sale solo en la tablet
+              - if: "{{ trigger.id == 'nueva' }}"
+                then:
+                  - action: select.select_option
+                    continue_on_error: true
+                    target:
+                      entity_id: select.tablet_dashboard_view
+                    data:
+                      option: futbolin-marcador/marcador
+              # «Nueva» sin respuesta: ya habla el locutor con la presentación
+              - set_conversation_response: >-
+                  {{ {'nueva': '', 'gol_a': 'Gol del Madrid.', 'gol_b': 'Gol del Barça.',
+                      'quita_a': 'Quitado uno al Madrid.', 'quita_b': 'Quitado uno al Barça.',
+                      'anular': 'Partida anulada.'}[trigger.id] }}
+
+          - conditions: "{{ trigger.id == 'marcador' }}"
+            sequence:
+              - variables:
+                  a: "{{ states('sensor.futbolin_marcador_a') }}"
+                  b: "{{ states('sensor.futbolin_marcador_b') }}"
+                  fase: "{{ states('sensor.futbolin_marcador_fase') }}"
+              - set_conversation_response: >-
+                  {% if apagado %}El futbolín está apagado.
+                  {% elif fase == 'reposo' %}No hay ninguna partida empezada.
+                  {% else %}Madrid {{ a }}, Barça {{ b }}.
+                  {{ {'bola_partido_a': 'Bola de partido para el Madrid.',
+                      'bola_partido_b': 'Bola de partido para el Barça.',
+                      'la_buena': '¡Estáis en la buena!',
+                      'fin_a': 'Ha ganado el Madrid.',
+                      'fin_b': 'Ha ganado el Barça.'}.get(fase, '') }}
+                  {% endif %}
+
+          # El marcador pasa a ser la página principal de la tablet, no una
+          # página abierta encima (ks_tablet_open_url): Kiosk Satellite cierra
+          # esas en cuanto termina cualquier conversación con Assist, así que
+          # cada «gol del Madrid» devolvía la tablet a su página de siempre.
+          - conditions: "{{ trigger.id == 'abrir' }}"
+            sequence:
+              - action: select.select_option
+                target:
+                  entity_id: select.tablet_dashboard_view
+                data:
+                  option: futbolin-marcador/marcador
+              - set_conversation_response: Ahí lo tienes.
+
+          - conditions: "{{ trigger.id == 'cerrar' }}"
+            sequence:
+              - action: script.futbolin_cerrar_marcador
+              - set_conversation_response: Cerrado.
+
+          - conditions: "{{ trigger.id in ['musica_poner', 'musica_quitar'] }}"
+            sequence:
+              - action: script.futbolin_musica
+                data:
+                  accion: "{{ 'poner' if trigger.id == 'musica_poner' else 'quitar' }}"
+              - set_conversation_response: "{{ '¡Música!' if trigger.id == 'musica_poner' else 'Música quitada.' }}"
