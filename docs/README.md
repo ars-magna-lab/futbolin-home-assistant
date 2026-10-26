@@ -47,7 +47,7 @@ Se detecta en el **carril de recogida**, no en la portería: ahí la bola rueda 
 | Tiras LED | 2 tiras WS2811 de 12 V, 60 LED/m (un píxel cada 3 LEDs), 28 píxeles por lado |
 | Baterías | 2 × plomo 12 V 7 Ah en paralelo, con un fusible de 5 A cada una; interruptor general por debajo del mueble |
 | Buck 12 → 5 V | LM2596 ajustable (HW-319) a 5,0 V para el ESP32 y los sensores |
-| Medida de batería | Divisor de 100 kΩ / 20–22 kΩ al GPIO 34 (ADC1: el ADC2 no funciona con WiFi); el multiplicador se calibra con un multímetro |
+| Medida de batería | Divisor de 100 kΩ / 20 kΩ (10 k + 10 k) al GPIO 34 (ADC1: el ADC2 no funciona con WiFi); el multiplicador se calibra con un multímetro |
 | Pantalla y voz | Una tablet con el dashboard de HA y Assist |
 
 ### Pines del ESP32
@@ -57,7 +57,7 @@ Se detecta en el **carril de recogida**, no en la portería: ahí la bola rueda 
 | Receptor gol A (Madrid) / B (Barcelona), pull-up externo de 5,1 kΩ y 1 kΩ en serie | 32, 33 |
 | Emisor IR A / B, alimentado por el pin (autotest) | 14, 27 |
 | Batería (ADC1) | 34 |
-| Reservados para medir la velocidad del disparo (piezo, ADC1) | 35, 36 |
+| Reservados para ampliaciones (ADC1) | 35, 36 |
 | Reservados para velocidad con haces | 16, 17, 18, 19 |
 | I2C reservado para ampliaciones | 21, 22 |
 
@@ -141,7 +141,7 @@ Las calcula el paquete de HA para el dashboard y la voz (secuencia de goles, úl
 
 ## Ideas futuras
 
-Diagramas de propuestas que no están montadas: medir la velocidad del disparo con un piezo pegado por fuera del fondo de la portería (`img/piezo-*.svg`) o con dos haces en la boca de la portería (`img/velocidad-haces.svg`). Otras ideas: batería LiFePO4 para pasar de 8 h, ranking de jugadores, botonera Zigbee y el marcador en la tele.
+Diagrama de una propuesta que no está montada: medir la velocidad del disparo con dos haces en la boca de la portería (`img/velocidad-haces.svg`). Otras ideas: batería LiFePO4 para pasar de 8 h, ranking de jugadores, botonera Zigbee y el marcador en la tele.
 
 Los diagramas se regeneran con `python3 docs/img/diagramas.py`.
 

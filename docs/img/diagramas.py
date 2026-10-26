@@ -5,8 +5,7 @@
 
 Los colores usan variables CSS con valor por defecto: en la web (SVG en línea)
 siguen el tema claro/oscuro de la página; en GitHub o en un visor se ven con el
-color por defecto. Las gráficas del piezo son ILUSTRATIVAS: modelos físicos
-aproximados, no medidas.
+color por defecto.
 """
 
 import math
@@ -82,10 +81,8 @@ def arquitectura():
     c += '<rect class="zona" x="500" y="10" width="250" height="340" rx="10"/>'
     c += '<text class="t tb" x="516" y="34">Casa</text>'
 
-    c += caja(30, 150, 170, 40, ["Barreras IR", "una por carril"])
-    c += flecha(200, 170, 248, 195)
-    c += caja(30, 205, 170, 40, ["Piezo del fondo", "futuro (velocidad)"], clase="caja punteada")
-    c += '<line class="l punteada" x1="200" y1="225" x2="248" y2="215" FLECHA/>'
+    c += caja(30, 185, 170, 40, ["Barreras IR", "una por carril"])
+    c += flecha(200, 205, 248, 205)
 
     c += caja(250, 50, 170, 50, ["Baterías 12 V", "2 × plomo 7 Ah · interruptor"])
     c += flecha(335, 100, 335, 168)
@@ -95,7 +92,7 @@ def arquitectura():
     c += '<text class="ts" x="342" y="264">presets (WiFi local)</text>'
     c += caja(250, 280, 170, 44, ["Gledopto · WLED", "controlador de tiras"])
     c += flecha(250, 302, 202, 302)
-    c += caja(30, 280, 170, 44, ["Tiras LED actuales", "2 × 28 píxeles, 12 V"])
+    c += caja(30, 280, 170, 44, ["Tiras LED", "2 × 28 píxeles, 12 V"])
 
     c += caja(520, 60, 210, 120, ["Home Assistant", "entidades ESPHome y WLED",
                                    "dashboard del marcador", "Assist (voz)", "automatizaciones"])
@@ -113,7 +110,7 @@ def arquitectura():
 def secuencia():
     pasos = [
         (["1. Disparo"], "t = 0"),
-        (["2. Choca con", "el fondo", "(piezo: fuerza)"], "+ ms"),
+        (["2. Choca con", "el fondo"], "+ ms"),
         (["3. Cae por la", "ranura al", "carril"], "décimas de s"),
         (["4. Rueda y", "tapa la", "barrera IR"], "≈ 35 ms tapada"),
         (["5. ESP32: suma,", "decide la fase,", "preset en WLED"], "&lt; 0,1 s"),
@@ -198,7 +195,7 @@ def alimentacion():
     ramas = [
         (20, ["Gledopto", "WLED"], ["Tiras ×2", "8–10 W"]),
         (108, ["Buck 12→5 V", "HW-319 a 5,0 V"], ["ESP32", "+ sensores · 1,5 W"]),
-        (196, ["Divisor", "100k / 22k"], ["ADC GPIO 34", "% de batería"]),
+        (196, ["Divisor", "100k / 20k"], ["ADC GPIO 34", "% de batería"]),
     ]
     for yr, a, b in ramas:
         c += flecha(495, yr + 24, 518, yr + 24)
@@ -391,207 +388,6 @@ def haces():
     svg("velocidad-haces", 760, 280, "Medida de velocidad con dos haces en la boca de la portería", c)
 
 
-# ---------------------------------------------------------------- montaje del piezo
-def piezo_montaje():
-    c = '<text class="t tb" x="20" y="22">Corte lateral de la portería (propuesta)</text>'
-    # campo y frontal
-    c += '<line class="l" x1="20" y1="150" x2="380" y2="150"/>'
-    c += '<text class="ts" x="30" y="170">campo</text>'
-    c += '<rect class="madera" x="376" y="30" width="14" height="40"/>'
-    c += '<text class="ts te" x="370" y="46">frontal</text>'
-    # cavidad: techo, suelo, ranura y panel trasero
-    c += '<line class="l" x1="390" y1="70" x2="520" y2="70"/>'
-    c += '<line class="l" x1="380" y1="150" x2="465" y2="150"/>'
-    c += '<text class="ts tc" x="487" y="168">ranura</text>'
-    c += '<rect class="madera" x="520" y="40" width="16" height="170"/>'
-    c += '<text class="ts" x="548" y="56">panel trasero</text>'
-    c += '<text class="ts" x="548" y="72">(madera dura, encastrado)</text>'
-    c += '<rect class="f2" x="536" y="96" width="6" height="28" rx="2"/>'
-    c += '<text class="t tb" x="550" y="104">piezo Ø 27 mm</text>'
-    c += '<text class="ts" x="550" y="120">pegado por fuera</text>'
-    c += '<path class="s2" d="M542,110 C600,110 600,150 640,150"/>'
-    c += caja(640, 132, 112, 40, ["ESP32", "pico → ADC"])
-    # trayectoria de la bola
-    c += '<circle class="bola" cx="150" cy="138" r="12"/>'
-    c += '<line class="l punteada" x1="164" y1="134" x2="494" y2="110" FLECHA/>'
-    c += '<text class="ts" x="210" y="112">disparo</text>'
-    c += '<circle class="bola" cx="497" cy="110" r="12" style="opacity:.45"/>'
-    c += '<path class="ls punteada" d="M494,124 C488,160 484,190 490,210"/>'
-    # carril inclinado con la barrera IR
-    c += '<polygon class="madera" points="440,214 740,262 740,276 440,228"/>'
-    c += '<circle class="bola" cx="560" cy="222" r="11"/>'
-    c += '<line class="srojo" x1="640" y1="222" x2="640" y2="252"/>'
-    c += '<text class="ts" x="600" y="292">barrera IR: confirma el gol</text>'
-    c += '<text class="ts" x="250" y="236">carril de recogida (bajo el tablero)</text>'
-    svg("piezo-montaje", 760, 300, "Dónde iría el piezo: detrás del fondo de la portería", c)
-
-
-# ---------------------------------------------------------------- circuito del piezo
-def piezo_circuito():
-    c = ""
-    top, gnd = 60, 170
-    c += f'<line class="l" x1="60" y1="{top}" x2="180" y2="{top}"/>'
-    c += f'<line class="l" x1="230" y1="{top}" x2="270" y2="{top}"/>'
-    c += f'<line class="l" x1="300" y1="{top}" x2="600" y2="{top}"/>'
-    c += f'<line class="l" x1="60" y1="{gnd}" x2="500" y2="{gnd}"/>'
-    # tierra
-    c += f'<line class="l" x1="280" y1="{gnd}" x2="280" y2="{gnd + 10}"/>'
-    c += f'<line class="l" x1="268" y1="{gnd + 10}" x2="292" y2="{gnd + 10}"/>'
-    c += f'<line class="l" x1="273" y1="{gnd + 15}" x2="287" y2="{gnd + 15}"/>'
-    c += f'<line class="l" x1="278" y1="{gnd + 20}" x2="282" y2="{gnd + 20}"/>'
-    # piezo
-    c += f'<line class="l" x1="60" y1="{top}" x2="60" y2="98"/><line class="l" x1="60" y1="132" x2="60" y2="{gnd}"/>'
-    c += '<line class="l" x1="44" y1="98" x2="76" y2="98"/><line class="l" x1="44" y1="132" x2="76" y2="132"/>'
-    c += '<rect class="f2" x="46" y="104" width="28" height="22" rx="2"/>'
-    c += '<text class="t tb te" x="38" y="120">piezo</text>'
-
-    def resistencia_v(x, etq, nota):
-        s = f'<line class="l" x1="{x}" y1="{top}" x2="{x}" y2="95"/><line class="l" x1="{x}" y1="135" x2="{x}" y2="{gnd}"/>'
-        s += f'<rect class="caja" x="{x - 7}" y="95" width="14" height="40"/>'
-        s += f'<text class="t" x="{x + 12}" y="112">{etq}</text><text class="ts" x="{x + 12}" y="128">{nota}</text>'
-        return s
-
-    c += resistencia_v(120, "1 MΩ", "")
-    # resistencia serie
-    c += f'<rect class="caja" x="180" y="{top - 7}" width="50" height="14"/>'
-    c += f'<text class="t tc" x="205" y="{top - 14}">10 kΩ</text>'
-    # diodo
-    c += f'<polygon style="fill:var(--tinta,#1d1d1b)" points="270,{top - 10} 270,{top + 10} 292,{top}"/>'
-    c += f'<line class="l" x1="294" y1="{top - 11}" x2="294" y2="{top + 11}"/>'
-    c += f'<text class="t tc" x="284" y="{top - 16}">BAT85</text>'
-    # condensador
-    c += f'<line class="l" x1="360" y1="{top}" x2="360" y2="110"/><line class="l" x1="360" y1="120" x2="360" y2="{gnd}"/>'
-    c += '<line class="l" x1="346" y1="110" x2="374" y2="110"/><line class="l" x1="346" y1="120" x2="374" y2="120"/>'
-    c += '<text class="t" x="380" y="119">100 nF</text>'
-    c += resistencia_v(450, "1 MΩ", "")
-    # zener
-    c += f'<line class="l" x1="520" y1="{top}" x2="520" y2="102"/><line class="l" x1="520" y1="122" x2="520" y2="{gnd}"/>'
-    c += '<polygon style="fill:var(--tinta,#1d1d1b)" points="510,122 530,122 520,104"/>'
-    c += '<polyline class="l" points="506,100 510,102 530,102 534,104"/>'
-    c += '<line class="l" x1="500" y1="170" x2="520" y2="170"/>'
-    c += '<text class="t" x="536" y="119">zener 3,3 V</text>'
-    c += '<circle style="fill:var(--tinta,#1d1d1b)" cx="360" cy="60" r="3"/><circle style="fill:var(--tinta,#1d1d1b)" cx="450" cy="60" r="3"/>'
-    c += '<circle style="fill:var(--tinta,#1d1d1b)" cx="520" cy="60" r="3"/><circle style="fill:var(--tinta,#1d1d1b)" cx="120" cy="60" r="3"/>'
-    c += caja(600, 40, 140, 40, ["GPIO 35", "ADC1, solo entrada"])
-    # notas de función
-    notas = [(60, "genera tensión"), (120, "descarga el piezo"), (205, "limita corriente"),
-             (284, "solo deja subir"), (360, "guarda el pico"), (450, "lo vacía: τ = 0,1 s"),
-             (530, "protege el ESP32")]
-    for i, (x, t) in enumerate(notas):
-        yy = 214 if i % 2 == 0 else 230
-        c += f'<text class="ts tc" x="{x}" y="{yy}">{t}</text>'
-    svg("piezo-circuito", 760, 240, "Detector de pico entre el piezo y el ESP32", c)
-
-
-# ---------------------------------------------------------------- gráficas (ilustrativas)
-class Grafica:
-    """Ejes lineales sencillos dentro de un rectángulo."""
-
-    def __init__(self, x, y, w, h, xmin, xmax, ymin, ymax):
-        self.x, self.y, self.w, self.h = x, y, w, h
-        self.xmin, self.xmax, self.ymin, self.ymax = xmin, xmax, ymin, ymax
-
-    def px(self, v):
-        return self.x + (v - self.xmin) / (self.xmax - self.xmin) * self.w
-
-    def py(self, v):
-        return self.y + self.h - (v - self.ymin) / (self.ymax - self.ymin) * self.h
-
-    def ejes(self, xticks, yticks, xetq, yetq, fmt_x=str, fmt_y=str):
-        s = ""
-        for v in yticks:
-            s += f'<line class="lg" x1="{self.x}" y1="{self.py(v):.1f}" x2="{self.x + self.w}" y2="{self.py(v):.1f}"/>'
-            s += f'<text class="ts te" x="{self.x - 6}" y="{self.py(v) + 4:.1f}">{fmt_y(v)}</text>'
-        for v in xticks:
-            s += f'<text class="ts tc" x="{self.px(v):.1f}" y="{self.y + self.h + 16}">{fmt_x(v)}</text>'
-        s += f'<line class="ls" x1="{self.x}" y1="{self.y + self.h}" x2="{self.x + self.w}" y2="{self.y + self.h}"/>'
-        s += f'<text class="ts tc" x="{self.x + self.w / 2}" y="{self.y + self.h + 34}">{xetq}</text>'
-        s += f'<text class="ts" x="{self.x - 40}" y="{self.y - 10}">{yetq}</text>'
-        return s
-
-    def curva(self, f, a, b, n, clase):
-        return polilinea([(self.px(a + (b - a) * i / n), self.py(f(a + (b - a) * i / n))) for i in range(n + 1)], clase)
-
-
-def coma(v, dec=1):
-    return f"{v:.{dec}f}".replace(".", ",")
-
-
-def piezo_senal():
-    g = Grafica(70, 40, 640, 180, 0, 30, -2.5, 3.5)
-    c = g.ejes(range(0, 31, 5), [-2, -1, 0, 1, 2, 3], "tiempo desde el impacto (ms)", "tensión (V)",
-               fmt_y=lambda v: str(v).replace("-", "−"))
-    c += f'<line class="ls" x1="{g.x}" y1="{g.py(0):.1f}" x2="{g.x + g.w}" y2="{g.py(0):.1f}"/>'
-
-    def bruta(t):  # oscilación amortiguada del disco tras el golpe
-        return 0 if t < 2 else 3.2 * math.exp(-(t - 2) / 2.5) * math.sin(2 * math.pi * (t - 2) / 1.6)
-
-    def pico(t):  # detector: sube con la primera cresta y se vacía con τ = 100 ms
-        if t < 2.4:
-            return max(0, bruta(t) - 0.3)
-        return (3.2 * math.exp(-0.4 / 2.5) - 0.3) * math.exp(-(t - 2.4) / 100)
-
-    c += g.curva(bruta, 0, 30, 900, "s2")
-    c += g.curva(pico, 0, 30, 300, "s1")
-    # lecturas del ADC cada milisegundo
-    for t in range(3, 31, 3):
-        c += f'<circle class="f1" cx="{g.px(t):.1f}" cy="{g.py(pico(t)):.1f}" r="4" style="stroke:var(--papel,#fff);stroke-width:2"><title>{t} ms: {coma(pico(t), 2)} V</title></circle>'
-    c += f'<text class="t" x="{g.px(13)}" y="{g.py(2.85):.1f}">salida del detector de pico (lo que lee el ESP32)</text>'
-    c += f'<text class="t" x="{g.px(7)}" y="{g.py(-1.2):.1f}">tensión del piezo: oscila y se apaga en pocos ms</text>'
-    c += f'<text class="ts" x="{g.x}" y="275">Ilustrativo, no medido. Un golpe fuerte puede dar decenas de voltios en el piezo; el zener lo limita a 3,3 V.</text>'
-    c += f'<text class="ts" x="{g.x}" y="291">El ESP32 no necesita ver la oscilación: lee el pico cada milisegundo (puntos) y se queda con el máximo.</text>'
-    svg("piezo-senal", 760, 300, "Señal del piezo y salida del detector de pico (ilustrativo)", c)
-
-
-def piezo_ventana():
-    g = Grafica(70, 40, 640, 150, 0, 2, 0, 3.3)
-    c = g.ejes([0, 0.5, 1, 1.5, 2], [0, 1, 2, 3], "tiempo (s)", "pico (V)", fmt_x=lambda v: coma(v))
-    gol, ventana = 1.6, 1.0
-    c += f'<rect class="sombra1" x="{g.px(gol - ventana):.1f}" y="{g.y}" width="{g.px(gol) - g.px(gol - ventana):.1f}" height="{g.h}"/>'
-    c += f'<text class="ts tc" x="{g.px(gol - ventana / 2):.1f}" y="{g.y + 14}">ventana: 1 s antes del gol</text>'
-    golpes = [(0.12, 0.5, "barra"), (0.3, 2.4, "golpe a la mesa"), (0.55, 0.4, "barra"), (0.85, 0.6, "barra"),
-              (1.22, 2.0, "impacto en el fondo"), (1.4, 0.35, "barra"), (1.8, 0.7, "barra")]
-    for t, v, que in golpes:
-        elegido = que.startswith("impacto")
-        clase = "f2" if elegido else "f1"
-        c += f'<line class="{"s2" if elegido else "s1"}" x1="{g.px(t):.1f}" y1="{g.py(0):.1f}" x2="{g.px(t):.1f}" y2="{g.py(v):.1f}"/>'
-        c += f'<circle class="{clase}" cx="{g.px(t):.1f}" cy="{g.py(v):.1f}" r="5" style="stroke:var(--papel,#fff);stroke-width:2"><title>{coma(t, 2)} s: {coma(v)} V ({que})</title></circle>'
-    c += f'<text class="t" x="{g.px(0.32):.1f}" y="{g.py(2.55):.1f}">golpe fuerte a la mesa: fuera de la ventana, se ignora</text>'
-    c += f'<text class="t tb" x="{g.px(1.24):.1f}" y="{g.py(2.15):.1f}">máximo en la ventana = impacto</text>'
-    c += f'<line class="srojo" x1="{g.px(gol):.1f}" y1="{g.y}" x2="{g.px(gol):.1f}" y2="{g.y + g.h}"/>'
-    c += f'<text class="t tb" x="{g.px(gol) + 6:.1f}" y="{g.y + 14}" style="fill:var(--rojo,#c0392b)">GOL (barrera IR)</text>'
-    c += f'<text class="ts" x="{g.x}" y="252">Ilustrativo. El ancho real de la ventana es lo que tarda la bola del fondo a la barrera: hay que medirlo.</text>'
-    svg("piezo-ventana", 760, 260, "Cómo se separa el impacto del gol de los golpes a la mesa", c)
-
-
-def piezo_calibracion():
-    g = Grafica(70, 40, 620, 200, 0, 120, 0, 3.3)
-    c = g.ejes(range(0, 121, 20), [0, 1, 2, 3], "velocidad de la bola (km/h)", "pico (V)")
-    k = 3.0 / 120 ** 1.2  # pico ∝ v^1,2 (contacto de Hertz), 3 V a 120 km/h
-
-    def media(v):
-        return k * v ** 1.2
-
-    banda = [(g.px(v), g.py(media(v) * 1.25)) for v in range(0, 121, 4)]
-    banda += [(g.px(v), g.py(media(v) * 0.75)) for v in range(120, -1, -4)]
-    c += '<polygon class="sombra1" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y in banda) + '"/>'
-    c += g.curva(media, 0, 120, 120, "s1")
-    random.seed(7)
-    for _ in range(28):
-        v = random.uniform(15, 110)
-        p = media(v) * random.uniform(0.78, 1.22)
-        c += f'<circle class="f1" cx="{g.px(v):.1f}" cy="{g.py(p):.1f}" r="4" style="stroke:var(--papel,#fff);stroke-width:2;opacity:.8"><title>{coma(v, 0)} km/h → {coma(p, 2)} V</title></circle>'
-    # lectura de ejemplo: 1,5 V → rango de velocidades
-    p = 1.5
-    vmin, vmax = (p / (k * 1.25)) ** (1 / 1.2), (p / (k * 0.75)) ** (1 / 1.2)
-    c += f'<line class="s2 punteada" x1="{g.px(0)}" y1="{g.py(p):.1f}" x2="{g.px(vmax):.1f}" y2="{g.py(p):.1f}"/>'
-    c += f'<rect class="sombra2" x="{g.px(vmin):.1f}" y="{g.y}" width="{g.px(vmax) - g.px(vmin):.1f}" height="{g.h}"/>'
-    c += f'<text class="t" x="{g.px(vmax) + 6:.1f}" y="{g.py(p) - 8:.1f}">lectura de 1,5 V → entre {coma(vmin, 0)} y {coma(vmax, 0)} km/h</text>'
-    c += f'<text class="t" x="{g.px(78)}" y="{g.py(3.15):.1f}">curva de calibración ± 25 %</text>'
-    c += f'<text class="ts" x="{g.x}" y="300">Ilustrativo: puntos inventados para mostrar la idea. Cada punto real sería un disparo medido a cámara lenta con el móvil.</text>'
-    svg("piezo-calibracion", 760, 310, "Calibración del piezo: pico frente a velocidad (ilustrativo)", c)
-
-
 # ---------------------------------------------------------------- conexiones del ESP32
 def banco_conexiones():
     c = ""
@@ -654,7 +450,7 @@ def cableado_general():
     c += '<line class="s2" x1="490" y1="214" x2="490" y2="280"/>'
     c += '<text class="ts" x="496" y="240">12 V al divisor</text>'
     c += '<line class="l" x1="685" y1="204" x2="685" y2="280"/><text class="ts" x="692" y="246">5 V y GND</text>'
-    c += caja(395, 280, 200, 100, ["Interfaz", "pull-up y 1 kΩ soldadas al cable", "divisor 100k / 22k en línea",
+    c += caja(395, 280, 200, 100, ["Interfaz", "pull-up y 1 kΩ soldadas al cable", "divisor 100k / 20k en línea",
                                    "3 clemas: 3,3 V y GND"])
     c += caja(620, 280, 130, 100, ["ESP32 DevKit", "placa de bornas", "antena hacia fuera"])
     c += '<line class="l" x1="595" y1="330" x2="620" y2="330"/><text class="ts tc" x="607" y="322">7</text>'
@@ -705,7 +501,7 @@ def placa_interfaz():
     c += '<rect class="caja" x="340" y="283" width="50" height="14"/><text class="ts tc" x="365" y="278">100 kΩ</text>'
     c += '<line class="s2" x1="390" y1="290" x2="430" y2="290"/><text class="ts" x="372" y="312">← 12 V (C2)</text>'
     c += '<line class="l" x1="260" y1="290" x2="260" y2="300"/>' + punto.format(260, 290)
-    c += '<rect class="caja" x="253" y="300" width="14" height="22"/><text class="ts" x="196" y="316">22 kΩ</text>'
+    c += '<rect class="caja" x="253" y="300" width="14" height="22"/><text class="ts" x="196" y="316">20 kΩ</text>'
     c += '<line class="l" x1="260" y1="322" x2="260" y2="330"/>'
     c += '<line class="l" x1="250" y1="330" x2="270" y2="330"/><line class="l" x1="254" y1="335" x2="266" y2="335"/>'
     # cable de 5 hilos
@@ -911,7 +707,6 @@ def protoboard_banco():
 
 if __name__ == "__main__":
     for f in (arquitectura, secuencia, barrera, alimentacion, haces,
-              piezo_montaje, piezo_circuito, piezo_senal, piezo_ventana, piezo_calibracion,
               tiras_conexion, maquina_estados, carril_embudo, protoboard_banco,
               banco_conexiones, cableado_general, placa_interfaz,
               alimentacion_cableado, alimentacion_montaje, modo_enchufado):
