@@ -1,0 +1,10 @@
+# Claves del ESP32
+secrets.yaml
+# Compilación de ESPHome
+.esphome/
+# Python
+__pycache__/
+# Locuciones generadas y caché de voces del locutor
+trabajo/
+# Copias de los presets que guarda cargar_presets.py
+wled/copias/
