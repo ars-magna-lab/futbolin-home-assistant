@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marcador del futbolín</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Maqueta del dashboard del marcador para una tablet
+   (1920 × 1200 → 1280 × 800 px CSS). Todo se dibuja sobre un escenario fijo de
+   1280 × 800 que se escala a la ventana, para ver en el PC lo mismo que en la
+   tablet. Equipo A = Real Madrid, equipo B = Barcelona. */
+:root {
+  --fondo: #06080c;
+  --fondo-2: #0d1117;
+  --linea: rgba(255,255,255,.08);
+  --texto: #e9edf3;
+  --texto-suave: #8a94a6;
+  --apagado: rgba(255,255,255,.045);
+
+  --madrid: #f6f3ea;
+  --madrid-brillo: rgba(255,250,235,.55);
+  --madrid-oro: #d8b45a;
+  --barcelona: #3d8bff;
+  --barcelona-brillo: rgba(61,139,255,.6);
+  --barcelona-grana: #e0174f;
+
+  --aviso: #ff9f1a;
+  --error: #ff3b3b;
+  --ok: #34d17a;
+  --display: "Big Shoulders Display", "Oswald", Impact, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #000; color: var(--texto); font-family: Inter, system-ui, sans-serif; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+#escenario {
+  width: 1280px; height: 800px; flex: none; position: relative; overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 50% at 25% 45%, rgba(255,250,235,.05), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 75% 45%, rgba(61,139,255,.07), transparent 70%),
+    var(--fondo);
+  transform-origin: center;
+  display: grid; grid-template-rows: 56px 1fr 120px;
+}
+
+/* ---------- Barra de estado ---------- */
+.barra {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; border-bottom: 1px solid var(--linea);
+}
+.marca { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .12em; color: var(--texto-suave); }
+.marca b { color: var(--texto); }
+.chips { display: flex; gap: 10px; }
+.chip {
+  display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
+  border-radius: 17px; background: var(--fondo-2); border: 1px solid var(--linea);
+  font-weight: 600; font-size: 15px; color: var(--texto-suave);
+}
+.chip svg { width: 18px; height: 18px; }
+.chip.ok { color: var(--ok); }
+.chip.aviso { color: var(--aviso); border-color: rgba(255,159,26,.4); }
+.chip.error { color: #fff; background: var(--error); border-color: var(--error); animation: latido 1s infinite; }
+.chip[hidden] { display: none; }
+
+/* ---------- Zona central ---------- */
+.campo { display: grid; grid-template-columns: 1fr 128px 1fr; gap: 18px; padding: 18px 24px 10px; position: relative; }
+
+.equipo {
+  position: relative; border-radius: 28px; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.01));
+  border: 2px solid var(--linea);
+  transition: opacity .4s, filter .4s, border-color .4s;
+}
+.equipo::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 10px; }
+#equipo-a::before { background: linear-gradient(90deg, var(--madrid) 0 82%, var(--madrid-oro) 82% 100%); }
+#equipo-b::before { background: linear-gradient(90deg, var(--barcelona) 0 50%, var(--barcelona-grana) 50% 100%); box-shadow: inset 0 -1px 0 rgba(255,255,255,.15); }
+#equipo-b { background: linear-gradient(180deg, rgba(61,139,255,.07), rgba(0,0,0,.3)); }
+
+.nombre {
+  margin-top: 26px; font-family: var(--display); font-weight: 900; font-size: 46px;
+  letter-spacing: .08em; text-transform: uppercase; line-height: 1;
+}
+#equipo-a .nombre { color: var(--madrid); }
+#equipo-b .nombre { color: var(--barcelona); }
+
+.cinta {
+  height: 34px; margin-top: 10px; padding: 0 16px; border-radius: 17px;
+  font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .14em;
+  display: flex; align-items: center; opacity: 0; transform: translateY(-6px); transition: .3s;
+}
+.equipo.partido .cinta { opacity: 1; transform: none; animation: latido 1.2s infinite; }
+#equipo-a .cinta { background: var(--madrid); color: #111; }
+#equipo-b .cinta { background: var(--barcelona); color: #000; }
+.equipo.partido { border-color: currentColor; }
+#equipo-a.partido { color: var(--madrid); box-shadow: 0 0 40px rgba(255,250,235,.15) inset; }
+#equipo-b.partido { color: var(--barcelona); box-shadow: 0 0 40px rgba(61,139,255,.2) inset; }
+.equipo.pierde { opacity: .35; filter: saturate(.3); }
+
+/* Dígito de matriz de puntos 8 × 13, como un marcador de estadio */
+.digito {
+  display: grid; grid-template-columns: repeat(8, 29px); grid-template-rows: repeat(13, 29px);
+  gap: 6px; margin: auto 0; position: relative; z-index: 1;
+}
+.punto { border-radius: 50%; background: var(--apagado); transition: background .25s, box-shadow .25s; }
+#equipo-a .punto.on { background: var(--madrid); box-shadow: 0 0 9px var(--madrid-brillo); }
+#equipo-b .punto.on { background: var(--barcelona); box-shadow: 0 0 10px var(--barcelona-brillo); }
+
+/* Escudos: en la cabecera y, muy tenue, detrás del número */
+.cabecera { margin-top: 22px; display: flex; align-items: center; gap: 16px; }
+.cabecera .escudo { height: 62px; width: auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+.cabecera .nombre { margin-top: 0; }
+.marca-agua { position: absolute; left: 50%; top: 56%; transform: translate(-50%,-50%); height: 78%; opacity: .05; pointer-events: none; filter: grayscale(.2); }
+
+/* ---------- Columna de las 11 bolas ---------- */
+.bolas { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.bola {
+  width: 38px; height: 38px; border-radius: 50%; flex: none;
+  border: 2px solid rgba(255,255,255,.14); background: transparent; position: relative;
+  transition: .35s;
+}
+.bola.a { background: radial-gradient(circle at 35% 30%, #fff, #d9d4c6); border-color: var(--madrid-oro); }
+.bola.b { background: radial-gradient(circle at 35% 30%, #ff6b74, #c40012 60%, #3a0005); border-color: #000; }
+.bola.siguiente { border-color: rgba(255,255,255,.55); border-style: dashed; animation: gira 6s linear infinite; }
+.bola.buena { width: 46px; height: 46px; margin-top: 6px; border-color: var(--madrid-oro); }
+.bola.buena::after { content: "LB"; position: absolute; inset: 0; display: grid; place-items: center; font: 700 14px var(--display); letter-spacing: .05em; color: var(--madrid-oro); }
+.bola.buena.a::after, .bola.buena.b::after { content: ""; }
+.bola.recien { animation: aparece .6s cubic-bezier(.2,1.6,.4,1); }
+
+/* ---------- Banderín central de fase ---------- */
+.fase {
+  font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .12em; line-height: 1.05;
+  color: var(--texto-suave); text-align: center; margin-bottom: 8px; min-height: 48px;
+}
+.fase b { display: block; font-size: 34px; color: var(--texto); letter-spacing: .04em; }
+#escenario.la-buena .fase, #escenario.la-buena .fase b { color: var(--madrid-oro); }
+
+/* ---------- La buena ---------- */
+#escenario.la-buena .campo::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(216,180,90,.0) inset, 0 0 160px rgba(216,180,90,.25) inset;
+  animation: corazon 1.1s infinite;
+}
+#escenario.la-buena .equipo { border-color: var(--madrid-oro); }
+#escenario.la-buena .bola.buena { animation: corazon-bola 1.1s infinite; border-width: 3px; }
+.banda-buena {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%) rotate(-4deg) scale(.6);
+  padding: 14px 54px; border-radius: 10px; z-index: 5; pointer-events: none;
+  background: linear-gradient(90deg, var(--madrid) 0 50%, var(--barcelona) 50% 100%);
+  font-family: var(--display); font-weight: 900; font-size: 120px; line-height: 1; letter-spacing: .06em;
+  color: #000; opacity: 0; transition: .4s cubic-bezier(.2,1.4,.4,1);
+  box-shadow: 0 20px 80px rgba(0,0,0,.8), 0 0 0 6px var(--madrid-oro);
+}
+.banda-buena small { display: block; font-size: 26px; letter-spacing: .3em; text-align: center; margin-top: 6px; font-weight: 700; }
+#escenario.la-buena.recien-buena .banda-buena { opacity: 1; transform: translate(-50%,-50%) rotate(-4deg) scale(1); }
+
+/* ---------- Capas: gol, fin, reposo, apagado ---------- */
+.capa {
+  position: absolute; inset: 56px 0 120px 0; z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  opacity: 0; pointer-events: none; transition: opacity .35s;
+}
+.capa.visible { opacity: 1; pointer-events: auto; }
+
+#capa-gol { inset: 0; z-index: 20; overflow: hidden; }
+#capa-gol .texto-gol {
+  font-family: var(--display); font-weight: 900; font-size: 300px; line-height: .85; letter-spacing: -.01em;
+  transform: scale(.4); transition: transform .5s cubic-bezier(.2,1.6,.4,1);
+}
+#capa-gol.visible .texto-gol { transform: scale(1); }
+#capa-gol .escudo-gol { height: 170px; position: relative; filter: drop-shadow(0 8px 20px rgba(0,0,0,.35)); transform: scale(.3) rotate(-20deg); transition: transform .6s cubic-bezier(.2,1.6,.4,1); }
+#capa-gol.visible .escudo-gol { transform: none; }
+#capa-gol .texto-gol, #capa-gol .quien { position: relative; }
+#capa-gol .texto-gol { font-size: 240px; }
+#capa-gol .quien { font-family: var(--display); font-weight: 700; font-size: 54px; letter-spacing: .2em; }
+#capa-gol.a { background: radial-gradient(circle, #fff 0%, #ece6d4 70%); color: #111; }
+#capa-gol.a .texto-gol { color: #111; text-shadow: 6px 6px 0 var(--madrid-oro); }
+#capa-gol.b { background: radial-gradient(circle, #ff2a38 0%, #b0000d 75%); color: #000; }
+#capa-gol.b .texto-gol { color: #000; text-shadow: 6px 6px 0 rgba(255,255,255,.25); }
+#capa-gol::before {
+  content: ""; position: absolute; inset: -50%;
+  background: repeating-conic-gradient(from 0deg, rgba(0,0,0,.05) 0 10deg, transparent 10deg 20deg);
+  animation: gira 8s linear infinite;
+}
+
+#capa-fin { background: rgba(4,6,10,.82); backdrop-filter: blur(3px); overflow: hidden; }
+#capa-fin .escudo-fin { height: 150px; position: relative; filter: drop-shadow(0 0 30px rgba(255,255,255,.25)); animation: flota 3s ease-in-out infinite; }
+#capa-fin .gana { font-family: var(--display); font-weight: 700; font-size: 34px; letter-spacing: .3em; color: var(--texto-suave); }
+#capa-fin .ganador { font-family: var(--display); font-weight: 900; font-size: 110px; line-height: .9; text-transform: uppercase; letter-spacing: .03em; }
+#capa-fin .resultado { font-family: var(--display); font-weight: 700; font-size: 64px; letter-spacing: .1em; }
+#capa-fin.a .ganador { color: var(--madrid); text-shadow: 0 0 40px var(--madrid-brillo); }
+#capa-fin.b .ganador { color: var(--barcelona); text-shadow: 0 0 40px var(--barcelona-brillo); }
+.confeti { position: absolute; top: -20px; width: 12px; height: 20px; border-radius: 2px; animation: cae linear infinite; }
+
+#capa-reposo { background: rgba(4,6,10,.7); backdrop-filter: blur(2px); }
+#capa-reposo .titular { margin-bottom: 18px; }
+.titular { font-family: var(--display); font-weight: 900; font-size: 110px; line-height: .95; letter-spacing: .02em; text-align: center; }
+.titular em { font-style: normal; border-bottom: 12px solid; border-image: linear-gradient(90deg, var(--madrid) 0 50%, var(--barcelona) 50% 100%) 1; }
+.pista { font-size: 22px; color: var(--texto-suave); text-align: center; }
+.pista b { color: var(--texto); }
+
+#capa-apagado { background: rgba(4,6,10,.92); }
+#capa-apagado svg { width: 80px; height: 80px; color: var(--texto-suave); }
+
+/* ---------- Mandos ---------- */
+.mandos { display: grid; grid-template-columns: 380px 1fr 380px; gap: 18px; padding: 8px 24px 22px; align-items: stretch; }
+.grupo { display: flex; gap: 12px; }
+#centro-mandos .mando { flex: 1; }
+#centro-mandos .mando.redondo { flex: none; width: 64px; height: 64px; }
+#centro-mandos[hidden] { visibility: hidden; display: flex; }
+.mandos .oculto { visibility: hidden; }
+.mando {
+  flex: 1; border-radius: 22px; background: var(--fondo-2); border: 1px solid var(--linea);
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: .06em;
+  position: relative; overflow: hidden; transition: transform .1s, background .2s;
+}
+.mando:active { transform: scale(.97); }
+.mando svg { width: 30px; height: 30px; }
+.mando.menos { flex: .55; color: var(--texto-suave); }
+#mandos-a .mando.mas { color: var(--madrid); border-color: rgba(255,250,235,.25); }
+#mandos-b .mando.mas { color: var(--barcelona); border-color: rgba(61,139,255,.35); }
+.mando .relleno { position: absolute; inset: 0; transform: scaleX(0); transform-origin: left; background: rgba(255,255,255,.14); }
+.mando.cargando .relleno { transform: scaleX(1); transition: transform .9s linear; }
+.mando .bajo { position: absolute; bottom: 7px; left: 0; right: 0; text-align: center; font: 600 11px Inter, sans-serif; letter-spacing: .08em; color: var(--texto-suave); text-transform: uppercase; }
+.mando.redondo { flex: none; width: 60px; border-radius: 50%; height: 60px; align-self: center; }
+.mando.principal { background: linear-gradient(90deg, rgba(255,250,235,.16), rgba(61,139,255,.22)); border-color: rgba(255,255,255,.25); color: #fff; }
+.mando.fila { flex-direction: column; gap: 0; }
+.mando.fila span:first-child { line-height: 1; }
+
+
+/* Panel de luces */
+#panel-luces {
+  position: absolute; right: 24px; bottom: 130px; width: 360px; z-index: 30;
+  background: #10151d; border: 1px solid var(--linea); border-radius: 22px; padding: 20px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6); display: none;
+}
+#panel-luces.visible { display: block; }
+#panel-luces h3 { font-family: var(--display); font-size: 26px; letter-spacing: .1em; margin-bottom: 14px; }
+.fila-panel { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--linea); font-size: 16px; }
+.interruptor { width: 52px; height: 30px; border-radius: 15px; background: #333; position: relative; transition: .2s; }
+.interruptor::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: .2s; }
+.interruptor.on { background: var(--ok); }
+.interruptor.on::after { left: 25px; }
+#panel-luces input[type=range] { width: 160px; accent-color: var(--madrid-oro); }
+.presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.presets button { padding: 8px 4px; border-radius: 10px; background: var(--fondo-2); border: 1px solid var(--linea); font-size: 13px; }
+
+/* ---------- Animaciones ---------- */
+@keyframes flota { 50% { transform: translateY(-8px) rotate(2deg); } }
+@keyframes latido { 50% { opacity: .55; } }
+@keyframes gira { to { transform: rotate(360deg); } }
+@keyframes aparece { from { transform: scale(0); } }
+@keyframes corazon { 0%,100% { opacity: .5; } 15% { opacity: 1; } 30% { opacity: .6; } 45% { opacity: .95; } }
+@keyframes corazon-bola { 0%,100% { transform: scale(1); box-shadow: 0 0 0 rgba(216,180,90,0); } 15%,45% { transform: scale(1.18); box-shadow: 0 0 30px rgba(216,180,90,.8); } }
+@keyframes cae { to { transform: translateY(820px) rotate(720deg); } }
+
+/* ---------- Simulador (no va al dashboard real) ---------- */
+#sim-boton { position: fixed; left: 50%; transform: translateX(-50%); top: 10px; z-index: 100; padding: 8px 14px; border-radius: 10px; background: #1b2230; border: 1px solid #2c3647; font: 600 13px Inter, sans-serif; color: #9fb0c8; }
+#sim {
+  position: fixed; left: 50%; transform: translateX(-50%); top: 50px; z-index: 100; width: 300px; padding: 16px;
+  background: #121824f2; border: 1px solid #2c3647; border-radius: 14px; font-size: 13px; color: #c8d3e3;
+  display: none; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+#sim.visible { display: block; }
+#sim h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #7f8ea6; margin: 12px 0 6px; }
+#sim h4:first-child { margin-top: 0; }
+#sim .botones { display: flex; flex-wrap: wrap; gap: 6px; }
+#sim button { padding: 6px 10px; border-radius: 8px; background: #212b3c; border: 1px solid #33405a; font-size: 13px; }
+#sim button.activo { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+#sim label { display: flex; align-items: center; gap: 8px; }
+#sim input[type=range] { flex: 1; }
+#sim .nota { color: #7f8ea6; margin-top: 10px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div id="escenario">
+  <!-- Barra de estado -->
+  <header class="barra">
+    <div class="marca"><b>FUTBOLÍN</b> · GARAJE</div>
+    <div class="chips">
+      <div class="chip error" id="chip-atasco" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <span>Atasco</span>
+      </div>
+      <div class="chip" id="chip-sensores">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12h4M17 12h4" stroke-linecap="round"/><path d="M8 12h8" stroke-dasharray="2 2.5"/><circle cx="5" cy="12" r="2.4" fill="currentColor"/><circle cx="19" cy="12" r="2.4"/></svg>
+        <span>Sensores OK</span>
+      </div>
+      <div class="chip" id="chip-luces">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
+        <span>Efectos</span>
+      </div>
+      <div class="chip" id="chip-bateria">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 10v4" stroke-linecap="round"/><rect id="bateria-nivel" x="4" y="9" width="13" height="6" rx="1" fill="currentColor" stroke="none"/></svg>
+        <span id="bateria-texto">82 %</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Marcador -->
+  <main class="campo">
+
+    <section class="equipo" id="equipo-a">
+      <img class="marca-agua" src="../../homeassistant/www/futbolin/madrid.svg" alt="">
+      <div class="cabecera"><img class="escudo" src="../../homeassistant/www/futbolin/madrid.svg" alt=""><div class="nombre">Real Madrid</div></div>
+      <div class="cinta">BOLA DE PARTIDO</div>
+      <div class="digito" id="digito-a"></div>
+    </section>
+
+    <aside class="bolas" id="bolas">
+      <div class="fase" id="fase"></div>
+    </aside>
+
+    <section class="equipo" id="equipo-b">
+      <img class="marca-agua" src="../../homeassistant/www/futbolin/barcelona.svg" alt="">
+      <div class="cabecera"><img class="escudo" src="../../homeassistant/www/futbolin/barcelona.svg" alt=""><div class="nombre">Barcelona</div></div>
+      <div class="cinta">BOLA DE PARTIDO</div>
+      <div class="digito" id="digito-b"></div>
+    </section>
+
+    <div class="banda-buena">LA BUENA<small>BOLA AL CENTRO</small></div>
+  </main>
+
+  <!-- Mandos -->
+  <footer class="mandos">
+    <div class="grupo" id="mandos-a">
+      <button class="mando menos" data-accion="menos-a" aria-label="Quitar un gol al Real Madrid">−1</button>
+      <button class="mando mas" data-accion="mas-a">+1 GOL</button>
+    </div>
+    <div class="grupo" id="centro-mandos"></div>
+    <div class="grupo" id="mandos-b">
+      <button class="mando mas" data-accion="mas-b">+1 GOL</button>
+      <button class="mando menos" data-accion="menos-b" aria-label="Quitar un gol al Barcelona">−1</button>
+    </div>
+  </footer>
+
+
+  <!-- Capas -->
+  <div class="capa" id="capa-gol">
+    <img class="escudo-gol" id="gol-escudo" src="../../homeassistant/www/futbolin/madrid.svg" alt="">
+    <div class="texto-gol">¡GOL!</div>
+    <div class="quien" id="gol-quien">REAL MADRID</div>
+  </div>
+
+  <div class="capa" id="capa-fin">
+    <div id="confeti"></div>
+    <img class="escudo-fin" id="fin-escudo" src="../../homeassistant/www/futbolin/madrid.svg" alt="">
+    <div class="gana">GANA EL</div>
+    <div class="ganador" id="fin-ganador">Real Madrid</div>
+    <div class="resultado" id="fin-resultado">6 – 3</div>
+    <div class="pista">Di <b>«nueva partida»</b> o mantén pulsado el botón</div>
+    <button class="mando principal" data-accion="nueva" data-mantener style="flex:none;width:380px;height:84px;margin-top:8px">
+      <span class="relleno"></span><span>NUEVA PARTIDA</span>
+    </button>
+  </div>
+
+  <div class="capa" id="capa-reposo">
+    <div class="titular">¿Echamos <em>una</em>?</div>
+    <div class="pista">Di <b>«nueva partida»</b> o pulsa el botón</div>
+    <button class="mando principal" data-accion="nueva" style="flex:none;width:380px;height:90px;margin-top:10px">NUEVA PARTIDA</button>
+  </div>
+
+  <div class="capa" id="capa-apagado">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v10"/><path d="M5.6 6.6a8 8 0 1 0 12.8 0"/></svg>
+    <div class="titular" style="font-size:72px">Futbolín apagado</div>
+    <div class="pista">Enciende el interruptor de debajo del mueble</div>
+  </div>
+
+  <!-- Panel de luces -->
+  <div id="panel-luces">
+    <h3>LUCES DEL FUTBOLÍN</h3>
+    <div class="fila-panel"><span>Tiras encendidas</span><button class="interruptor on" data-interruptor="tiras"></button></div>
+    <div class="fila-panel"><span>Efectos de juego</span><button class="interruptor on" data-interruptor="efectos"></button></div>
+    <div class="fila-panel"><span>Brillo</span><input type="range" min="0" max="100" value="70"></div>
+    <div class="fila-panel" style="display:block">
+      <span>Ambiente</span>
+      <div class="presets"><button>Reposo</button><button>Juego</button><button>Madrid</button><button>Barcelona</button><button>Arcoíris</button><button>Fiesta</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Simulador: solo en la maqueta -->
+<button id="sim-boton">Simulador ▾</button>
+<div id="sim">
+  <h4>Goles (detectados por las barreras)</h4>
+  <div class="botones"><button data-sim="gol-a">Gol Madrid [A]</button><button data-sim="gol-b">Gol Barcelona [B]</button></div>
+  <h4>Saltar a</h4>
+  <div class="botones">
+    <button data-sim="ir 3 2">3-2</button><button data-sim="ir 5 3">5-3</button><button data-sim="ir 4 5">4-5</button><button data-sim="ir 5 5">5-5</button><button data-sim="ir 6 4">6-4</button><button data-sim="ir 5 6">5-6</button>
+  </div>
+  <h4>Averías</h4>
+  <div class="botones">
+    <button data-sim="atasco-a">Atasco A</button><button data-sim="atasco-b">Atasco B</button><button data-sim="autotest">Autotest fallido</button>
+  </div>
+  <h4>Alimentación</h4>
+  <label>Batería <input type="range" id="sim-bateria" min="0" max="100" value="82"></label>
+  <div class="botones" style="margin-top:6px"><button data-sim="enchufado">Modo enchufado</button><button data-sim="apagado">Futbolín apagado</button><button data-sim="anular">Volver a reposo</button></div>
+  <div class="nota">Teclas: A y B marcan gol; N, nueva partida. Los botones −1 y +1 del marcador son las correcciones de HA: no lanzan la animación de gol.</div>
+</div>
+
+<script>
+// Patrones 8 × 13 de los dígitos que puede haber en el marcador (0–6), con trazo de dos puntos
+const COLS = 8, FILAS = 13;
+const PATRONES = {
+  0: ["00111100","01111110","11100111","11000011","11000011","11000011","11000011","11000011","11000011","11000011","11100111","01111110","00111100"],
+  1: ["00011000","00111000","01111000","11011000","00011000","00011000","00011000","00011000","00011000","00011000","00011000","01111110","01111110"],
+  2: ["00111100","01111110","11000011","00000011","00000011","00000111","00001110","00011100","00111000","01110000","11100000","11111111","11111111"],
+  3: ["00111100","01111110","11000011","00000011","00000011","00001110","00111100","00001110","00000011","00000011","11000011","01111110","00111100"],
+  4: ["00000110","00001110","00011110","00110110","01100110","11000110","11000110","11111111","11111111","00000110","00000110","00000110","00000110"],
+  5: ["11111111","11111111","11000000","11000000","11111110","11111111","00000011","00000011","00000011","00000011","11000011","01111110","00111100"],
+  6: ["00011110","00111000","01110000","11000000","11000000","11111110","11111111","11000011","11000011","11000011","11100111","01111110","00111100"],
+};
+const NOMBRES = { a: "Real Madrid", b: "Barcelona" };
+const ESCUDOS = { a: "madrid", b: "barcelona" };
+const GOLES_PARA_GANAR = 6, BOLAS = 11;
+
+// Estado que publicará el ESP32 (ver docs/HOMEASSISTANT.md)
+const estado = {
+  golesA: 0, golesB: 0, fase: "reposo",
+  secuencia: [],          // orden de los goles; en HA lo llevaría un ayudante a partir de event.futbolin_gol
+  atascoA: false, atascoB: false, autotest: true,
+  bateria: 82, enchufado: false, efectos: true, disponible: true,
+};
+
+const $ = s => document.querySelector(s);
+const escenario = $("#escenario");
+
+function calcularFase(a, b) {
+  if (a >= GOLES_PARA_GANAR) return "fin_a";
+  if (b >= GOLES_PARA_GANAR) return "fin_b";
+  if (a === 5 && b === 5) return "la_buena";
+  if (a === 5) return "bola_partido_a";
+  if (b === 5) return "bola_partido_b";
+  return "normal";
+}
+const enJuego = () => !["reposo", "fin_a", "fin_b"].includes(estado.fase);
+
+// ---------- Dibujo ----------
+function montarDigito(el) {
+  for (let i = 0; i < COLS * FILAS; i++) el.appendChild(Object.assign(document.createElement("div"), { className: "punto" }));
+}
+function pintarDigito(el, n) {
+  const filas = PATRONES[n];
+  [...el.children].forEach((p, i) => {
+    const fila = Math.floor(i / COLS), col = i % COLS;
+    const encendido = filas[fila][col] === "1";
+    p.style.transitionDelay = `${col * 18 + fila * 10}ms`;
+    p.classList.toggle("on", encendido);
+  });
+}
+
+function pintarBolas(recien) {
+  const caja = $("#bolas");
+  caja.querySelectorAll(".bola").forEach(b => b.remove());
+  for (let i = 0; i < BOLAS; i++) {
+    const b = document.createElement("div");
+    b.className = "bola";
+    if (i === BOLAS - 1) b.classList.add("buena");
+    const quien = estado.secuencia[i];
+    if (quien) b.classList.add(quien);
+    if (recien && i === estado.secuencia.length - 1) b.classList.add("recien");
+    if (enJuego() && i === estado.secuencia.length) b.classList.add("siguiente");
+    caja.appendChild(b);
+  }
+}
+
+function pintar(recien = false) {
+  const { golesA: a, golesB: b, fase } = estado;
+  pintarDigito($("#digito-a"), a);
+  pintarDigito($("#digito-b"), b);
+  pintarBolas(recien);
+
+  $("#equipo-a").classList.toggle("partido", fase === "bola_partido_a");
+  $("#equipo-b").classList.toggle("partido", fase === "bola_partido_b");
+  $("#equipo-a").classList.toggle("pierde", fase === "fin_b");
+  $("#equipo-b").classList.toggle("pierde", fase === "fin_a");
+
+  const textoFase = {
+    reposo: "", normal: `BOLA<b>${a + b + 1}/${BOLAS}</b>`,
+    bola_partido_a: `BOLA<b>${a + b + 1}/${BOLAS}</b>`, bola_partido_b: `BOLA<b>${a + b + 1}/${BOLAS}</b>`,
+    la_buena: "LA<b>BUENA</b>", fin_a: "<b>FINAL</b>", fin_b: "<b>FINAL</b>",
+  };
+  $("#fase").innerHTML = textoFase[fase];
+
+  const eraBuena = escenario.classList.contains("la-buena");
+  escenario.classList.toggle("la-buena", fase === "la_buena");
+  if (fase === "la_buena" && !eraBuena) {
+    // El cartel se muestra unos segundos al entrar en la buena; luego queda el latido
+    escenario.classList.add("recien-buena");
+    setTimeout(() => escenario.classList.remove("recien-buena"), 3500);
+  }
+
+  // Capas
+  $("#capa-reposo").classList.toggle("visible", fase === "reposo" && estado.disponible);
+  const fin = fase === "fin_a" || fase === "fin_b";
+  const capaFin = $("#capa-fin");
+  if (fin && !capaFin.classList.contains("visible")) lanzarConfeti(fase === "fin_a" ? "a" : "b");
+  capaFin.classList.toggle("visible", fin && estado.disponible);
+  capaFin.classList.toggle("a", fase === "fin_a");
+  capaFin.classList.toggle("b", fase === "fin_b");
+  if (fin) {
+    $("#fin-ganador").textContent = NOMBRES[fase === "fin_a" ? "a" : "b"];
+    $("#fin-escudo").src = `../../homeassistant/www/futbolin/${ESCUDOS[fase === "fin_a" ? "a" : "b"]}.svg`;
+    $("#fin-resultado").textContent = `${a} – ${b}`;
+  }
+  $("#capa-apagado").classList.toggle("visible", !estado.disponible);
+
+  // Chips
+  const atasco = estado.atascoA || estado.atascoB;
+  $("#chip-atasco").hidden = !atasco;
+  $("#chip-atasco span").textContent = `Atasco: portería del ${estado.atascoA ? NOMBRES.a : NOMBRES.b}`;
+  const sens = $("#chip-sensores");
+  sens.className = "chip " + (estado.autotest ? "ok" : "aviso");
+  sens.querySelector("span").textContent = estado.autotest ? "Sensores OK" : "Revisar sensores";
+  const luces = $("#chip-luces");
+  luces.className = "chip " + (estado.efectos ? "" : "aviso");
+  luces.querySelector("span").textContent = estado.efectos ? "Efectos" : "Efectos apagados";
+
+  const bat = $("#chip-bateria");
+  if (estado.enchufado) {
+    bat.className = "chip";
+    bat.querySelector("svg").innerHTML = '<path d="M7 2v5M17 2v5M5 7h14v4a7 7 0 0 1-14 0V7zM12 18v4" stroke-linecap="round"/>';
+  } else {
+    const p = estado.bateria;
+    bat.className = "chip " + (p <= 10 ? "error" : p <= 20 ? "aviso" : "");
+    bat.querySelector("svg").innerHTML = `<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 10v4" stroke-linecap="round"/><rect x="4" y="9" width="${Math.max(1, 13 * p / 100)}" height="6" rx="1" fill="currentColor" stroke="none"/>`;
+  }
+  $("#bateria-texto").textContent = estado.enchufado ? "Enchufado" : `${estado.bateria} %`;
+
+  pintarCentro();
+}
+
+// Botón central: nueva partida y anular, con «mantener pulsado» durante la partida
+function pintarCentro() {
+  const caja = $("#centro-mandos");
+  const mostrar = estado.disponible && estado.fase !== "reposo";
+  const fin = estado.fase.startsWith("fin");
+  caja.hidden = !mostrar || fin;
+  document.querySelectorAll(".mandos .mas").forEach(b => b.classList.toggle("oculto", !mostrar || fin));
+  document.querySelectorAll(".mandos .menos").forEach(b => b.classList.toggle("oculto", !mostrar));
+  if (!mostrar || fin) return;
+  caja.innerHTML = `
+    <button class="mando fila" data-accion="nueva" data-mantener><span class="relleno"></span><span>NUEVA</span><span class="bajo">mantén pulsado</span></button>
+    <button class="mando fila" data-accion="anular" data-mantener><span class="relleno"></span><span>ANULAR</span><span class="bajo">mantén pulsado</span></button>
+    <button class="mando redondo" data-accion="luces" aria-label="Luces">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 21h6v-1H9v1zm3-19a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/></svg>
+    </button>`;
+}
+
+let temporizadorGol;
+function animarGol(equipo) {
+  const capa = $("#capa-gol");
+  capa.className = "capa visible " + equipo;
+  $("#gol-quien").textContent = NOMBRES[equipo].toUpperCase();
+  $("#gol-escudo").src = `../../homeassistant/www/futbolin/${ESCUDOS[equipo]}.svg`;
+  clearTimeout(temporizadorGol);
+  temporizadorGol = setTimeout(() => capa.classList.remove("visible"), 2200);
+}
+
+function lanzarConfeti(equipo) {
+  const caja = $("#confeti");
+  caja.innerHTML = "";
+  const colores = equipo === "a" ? ["#ffffff", "#f2ecdc", "#d8b45a", "#b8c4d6"] : ["#3d8bff", "#000000", "#ff6b74", "#2a2a2a"];
+  for (let i = 0; i < 70; i++) {
+    const c = document.createElement("span");
+    c.className = "confeti";
+    c.style.left = Math.random() * 100 + "%";
+    c.style.background = colores[i % colores.length];
+    c.style.animationDuration = 2.5 + Math.random() * 3 + "s";
+    c.style.animationDelay = -Math.random() * 5 + "s";
+    c.style.transform = `rotate(${Math.random() * 360}deg)`;
+    caja.appendChild(c);
+  }
+}
+
+// ---------- Lógica (la que llevará el ESP32) ----------
+function sumar(equipo, deteccion) {
+  if (!enJuego()) return;                       // tras el sexto gol se ignoran
+  if (equipo === "a") estado.golesA++; else estado.golesB++;
+  estado.secuencia.push(equipo);
+  estado.fase = calcularFase(estado.golesA, estado.golesB);
+  pintar(true);
+  if (deteccion) animarGol(equipo);
+}
+function restar(equipo) {
+  if (estado.fase === "reposo") return;
+  const clave = equipo === "a" ? "golesA" : "golesB";
+  if (estado[clave] === 0) return;
+  estado[clave]--;
+  const i = estado.secuencia.lastIndexOf(equipo);
+  if (i >= 0) estado.secuencia.splice(i, 1);
+  estado.fase = calcularFase(estado.golesA, estado.golesB);
+  pintar();
+}
+function nuevaPartida() {
+  Object.assign(estado, { golesA: 0, golesB: 0, secuencia: [], fase: "normal" });
+  pintar();
+}
+function anular() {
+  Object.assign(estado, { golesA: 0, golesB: 0, secuencia: [], fase: "reposo" });
+  pintar();
+}
+function ir(a, b) {
+  const sec = [];
+  for (let i = 0; i < Math.max(a, b); i++) { if (i < a) sec.push("a"); if (i < b) sec.push("b"); }
+  Object.assign(estado, { golesA: a, golesB: b, secuencia: sec.slice(0, a + b), fase: calcularFase(a, b) });
+  pintar();
+}
+
+const acciones = {
+  "mas-a": () => sumar("a", false), "mas-b": () => sumar("b", false),
+  "menos-a": () => restar("a"), "menos-b": () => restar("b"),
+  nueva: nuevaPartida, anular,
+  luces: () => $("#panel-luces").classList.toggle("visible"),
+};
+
+// Botones con «mantener pulsado» para no reiniciar una partida sin querer
+document.addEventListener("pointerdown", e => {
+  const b = e.target.closest("[data-mantener]");
+  if (!b) return;
+  b.classList.add("cargando");
+  b._t = setTimeout(() => { b.classList.remove("cargando"); acciones[b.dataset.accion](); }, 900);
+});
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => document.addEventListener(ev, e => {
+  document.querySelectorAll(".cargando").forEach(b => { clearTimeout(b._t); b.classList.remove("cargando"); });
+}, true));
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-accion]");
+  if (b && !b.hasAttribute("data-mantener")) acciones[b.dataset.accion]();
+  const i = e.target.closest("[data-interruptor]");
+  if (i) {
+    i.classList.toggle("on");
+    if (i.dataset.interruptor === "efectos") { estado.efectos = i.classList.contains("on"); pintar(); }
+  }
+  if (!e.target.closest("#panel-luces") && !e.target.closest('[data-accion="luces"]')) $("#panel-luces").classList.remove("visible");
+});
+
+// ---------- Simulador ----------
+$("#sim-boton").onclick = () => $("#sim").classList.toggle("visible");
+$("#sim").addEventListener("click", e => {
+  const b = e.target.closest("[data-sim]");
+  if (!b) return;
+  const [orden, x, y] = b.dataset.sim.split(" ");
+  switch (orden) {
+    case "gol-a": sumar("a", true); break;
+    case "gol-b": sumar("b", true); break;
+    case "ir": ir(+x, +y); break;
+    case "atasco-a": estado.atascoA = !estado.atascoA; b.classList.toggle("activo"); break;
+    case "atasco-b": estado.atascoB = !estado.atascoB; b.classList.toggle("activo"); break;
+    case "autotest": estado.autotest = !estado.autotest; b.classList.toggle("activo"); break;
+    case "enchufado": estado.enchufado = !estado.enchufado; b.classList.toggle("activo"); break;
+    case "apagado": estado.disponible = !estado.disponible; b.classList.toggle("activo"); break;
+    case "anular": anular(); break;
+  }
+  pintar();
+});
+$("#sim-bateria").oninput = e => { estado.bateria = +e.target.value; pintar(); };
+document.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === "a") sumar("a", true);
+  if (k === "b") sumar("b", true);
+  if (k === "n") nuevaPartida();
+});
+
+// ---------- Escalado del escenario a la ventana ----------
+function encajar() {
+  const s = Math.min(innerWidth / 1280, innerHeight / 800);
+  escenario.style.transform = `scale(${s})`;
+}
+addEventListener("resize", encajar);
+
+montarDigito($("#digito-a"));
+montarDigito($("#digito-b"));
+encajar();
+pintar();
+// Atajo para revisar un estado concreto: marcador.html#5-5
+const atajo = location.hash.match(/^#(\d)-(\d)$/);
+if (atajo) ir(+atajo[1], +atajo[2]);
+const atajoGol = location.hash.match(/^#gol-(a|b)$/);
+if (atajoGol) { nuevaPartida(); sumar(atajoGol[1], true); }
+</script>
+</body>
+</html>

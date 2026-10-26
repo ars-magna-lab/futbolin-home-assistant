@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 170" width="760" height="170" role="img" aria-label="Recorrido de un gol desde el disparo hasta la tablet"><title>Recorrido de un gol desde el disparo hasta la tablet</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-secuencia-gol" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><rect class="caja" x="4" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="60.0" y="64.0">1. Disparo</text><text class="ts tc" x="60.0" y="122">t = 0</text><line class="l" x1="117" y1="60" x2="131" y2="60" marker-end="url(#fl-secuencia-gol)" /><rect class="caja punteada" x="132" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="188.0" y="49.0">2. Choca con</text><text class="ts tc" x="188.0" y="64.0">el fondo</text><text class="ts tc" x="188.0" y="79.0">(piezo: fuerza)</text><text class="ts tc" x="188.0" y="122">+ ms</text><line class="l" x1="245" y1="60" x2="259" y2="60" marker-end="url(#fl-secuencia-gol)" /><rect class="caja" x="260" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="316.0" y="49.0">3. Cae por la</text><text class="ts tc" x="316.0" y="64.0">ranura al</text><text class="ts tc" x="316.0" y="79.0">carril</text><text class="ts tc" x="316.0" y="122">décimas de s</text><line class="l" x1="373" y1="60" x2="387" y2="60" marker-end="url(#fl-secuencia-gol)" /><rect class="caja" x="388" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="444.0" y="49.0">4. Rueda y</text><text class="ts tc" x="444.0" y="64.0">tapa la</text><text class="ts tc" x="444.0" y="79.0">barrera IR</text><text class="ts tc" x="444.0" y="122">≈ 35 ms tapada</text><line class="l" x1="501" y1="60" x2="515" y2="60" marker-end="url(#fl-secuencia-gol)" /><rect class="caja" x="516" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="572.0" y="49.0">5. ESP32: suma,</text><text class="ts tc" x="572.0" y="64.0">decide la fase,</text><text class="ts tc" x="572.0" y="79.0">preset en WLED</text><text class="ts tc" x="572.0" y="122">&lt; 0,1 s</text><line class="l" x1="629" y1="60" x2="643" y2="60" marker-end="url(#fl-secuencia-gol)" /><rect class="caja" x="644" y="20" width="112" height="80" rx="6"/><text class="t tc tb" x="700.0" y="49.0">6. HA: marcador</text><text class="ts tc" x="700.0" y="64.0">en la tablet</text><text class="ts tc" x="700.0" y="79.0">y avisos</text><text class="ts tc" x="700.0" y="122">&lt; 0,5 s</text><rect class="sombra2" x="4" y="136" width="368" height="26" rx="4"/><text class="ts tc" x="188" y="154">dentro de la portería y el mueble</text><rect class="sombra1" x="388" y="136" width="368" height="26" rx="4"/><text class="ts tc" x="572" y="154">electrónica y red: casi instantáneo</text></svg>

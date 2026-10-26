@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 280" width="760" height="280" role="img" aria-label="Medida de velocidad con dos haces en la boca de la portería"><title>Medida de velocidad con dos haces en la boca de la portería</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-velocidad-haces" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><text class="t tb" x="40" y="22">Boca de la portería, vista desde arriba</text><rect class="madera" x="40" y="40" width="20" height="190"/><rect class="madera" x="340" y="40" width="20" height="190"/><line class="ls punteada" x1="60" y1="44" x2="340" y2="44"/><text class="ts tc" x="200" y="38">fondo (madera)</text><text class="ts tc" x="200" y="250">campo</text><polygon class="sombrar" points="60,160 340,121 340,199"/><rect class="rojo" x="334" y="114" width="8" height="12"/><line class="srojo" x1="334" y1="120" x2="66" y2="120"/><rect style="fill:var(--tinta,#1d1d1b)" x="58" y="114" width="8" height="12"/><rect class="rojo" x="58" y="154" width="8" height="12"/><line class="srojo" x1="66" y1="160" x2="334" y2="160"/><rect style="fill:var(--tinta,#1d1d1b)" x="334" y="154" width="8" height="12"/><text class="ts" x="70" y="114">haz 2 (emisor a la derecha)</text><text class="ts" x="70" y="178">haz 1 (emisor a la izquierda)</text><line class="l" x1="372" y1="120" x2="372" y2="160" marker-end="url(#fl-velocidad-haces)" marker-start="url(#fl-velocidad-haces)"/><text class="t" x="378" y="144">d</text><circle class="bola" cx="230" cy="214" r="12"/><line class="l" x1="230" y1="200" x2="230" y2="176" marker-end="url(#fl-velocidad-haces)"/><text class="ts" x="250" y="218">bola</text><text class="ts tc" x="200" y="272">29 cm de ancho · cono del emisor (rojo claro): diafonía</text><text class="t tb" x="420" y="22">Señales de los dos receptores</text><text class="ts" x="420" y="56">haz 1</text><polyline class="s1" points="420.0,70.0 500.0,70.0 500.0,106.0 514.0,106.0 514.0,70.0 745.0,70.0"/><text class="ts" x="420" y="126">haz 2</text><polyline class="s1" points="420.0,140.0 590.0,140.0 590.0,176.0 604.0,176.0 604.0,140.0 745.0,140.0"/><line class="ls punteada" x1="500" y1="60" x2="500" y2="190"/><line class="ls punteada" x1="590" y1="130" x2="590" y2="190"/><line class="l" x1="502" y1="186" x2="588" y2="186" marker-end="url(#fl-velocidad-haces)" marker-start="url(#fl-velocidad-haces)"/><text class="t tc" x="545" y="204">Δt</text><text class="t tb" x="420" y="234">v = d / Δt</text><text class="ts" x="420" y="252">Ej.: d = 40 mm a 100 km/h → Δt = 1,44 ms.</text><text class="ts" x="420" y="268">Los módulos comerciales tardan 1–2 ms: no valen.</text></svg>

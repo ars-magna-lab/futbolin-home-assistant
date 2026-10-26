@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 262" width="760" height="262" role="img" aria-label="Dos cuñas en ángulo recto en el carril y la barrera IR pegada a las paredes justo detrás"><title>Dos cuñas en ángulo recto en el carril y la barrera IR pegada a las paredes justo detrás</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-carril-embudo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><text class="t tb" x="20" y="22">Carril visto desde arriba: sensores detrás de dos cuñas en ángulo recto</text><rect class="madera" x="20" y="40" width="720" height="12"/><rect class="madera" x="20" y="198" width="720" height="12"/><text class="ts" x="30" y="232">paredes del carril (no se tocan)</text><polygon class="madera" points="300,52 450,80 450,52"/><polygon class="madera" points="300,198 450,170 450,198"/><rect class="rojo" x="452" y="54" width="18" height="20" rx="2"/><rect style="fill:var(--tinta,#1d1d1b)" x="452" y="176" width="18" height="20" rx="2"/><line class="srojo punteada" x1="461" y1="74" x2="461" y2="176"/><circle class="bola" cx="190" cy="125" r="42"/><line class="l" x1="240" y1="125" x2="300" y2="125" marker-end="url(#fl-carril-embudo)"/><text class="ts tc" x="190" y="129">bola</text><circle class="bola" cx="600" cy="125" r="42" style="opacity:.35"/><line class="l" x1="430" y1="82" x2="430" y2="168" marker-end="url(#fl-carril-embudo)" marker-start="url(#fl-carril-embudo)"/><text class="t" x="300" y="150">paso:</text><text class="t" x="300" y="166">≥ bola + 3–5 mm</text><text class="ts" x="300" y="100">rampa suave</text><text class="ts" x="300" y="114">(≤ 25–30°)</text><text class="ts" x="480" y="34">emisor pegado a la pared, tras la cara recta</text><text class="ts" x="480" y="232">receptor enfrente, igual</text><text class="ts" x="20" y="252">La bola baja de izquierda a derecha. Cada cuña sobresale el sensor + 2–3 mm; el haz cruza de pared a pared.</text></svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 182" width="760" height="182" role="img" aria-label="Modo enchufado: la fuente en lugar de las baterías"><title>Modo enchufado: la fuente en lugar de las baterías</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-modo-enchufado" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><rect class="caja" x="10" y="40" width="130" height="56" rx="6"/><text class="t tc tb" x="75.0" y="64.5">Fuente 12 V</text><text class="ts tc" x="75.0" y="79.5">Mean Well GST36E12</text><line class="l" x1="140" y1="68" x2="200" y2="68"/><text class="ts tc" x="170" y="60">clavija</text><rect class="caja" x="200" y="44" width="120" height="48" rx="6"/><text class="t tc tb" x="260.0" y="64.5">Jack hembra</text><text class="ts tc" x="260.0" y="79.5">5,5 × 2,1 mm</text><polyline class="srojo" points="320.0,60.0 420.0,60.0"/><polyline class="l" points="320.0,76.0 420.0,116.0"/><text class="ts" x="330" y="52">centro +</text><text class="ts" x="336" y="112">masa</text><rect class="rojo" x="420" y="54" width="14" height="12" rx="2"/><rect style="fill:var(--tinta,#1d1d1b)" x="420" y="110" width="14" height="12" rx="2"/><polyline class="srojo" points="440.0,60.0 480.0,60.0"/><rect class="caja" x="480" y="52" width="40" height="16" rx="8"/><text class="ts tc" x="500" y="64">5 A</text><polyline class="srojo" points="520.0,60.0 600.0,60.0"/><polyline class="l" points="440.0,116.0 600.0,116.0"/><rect class="caja" x="600" y="36" width="155" height="104" rx="6"/><text class="t tc tb" x="677.5" y="77.0">Cables de la bat. 1</text><text class="ts tc" x="677.5" y="92.0">(batería fuera)</text><text class="ts tc" x="677.5" y="107.0">→ resto del montaje</text><text class="ts" x="440" y="92">portafusibles del futbolín</text><text class="ts" x="10" y="170">Interruptor apagado para cambiar. Nunca fuente y baterías a la vez. En HA, activar Modo enchufado.</text></svg>

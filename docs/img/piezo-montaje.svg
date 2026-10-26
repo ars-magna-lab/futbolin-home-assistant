@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" height="300" role="img" aria-label="Dónde iría el piezo: detrás del fondo de la portería"><title>Dónde iría el piezo: detrás del fondo de la portería</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-piezo-montaje" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><text class="t tb" x="20" y="22">Corte lateral de la portería (propuesta)</text><line class="l" x1="20" y1="150" x2="380" y2="150"/><text class="ts" x="30" y="170">campo</text><rect class="madera" x="376" y="30" width="14" height="40"/><text class="ts te" x="370" y="46">frontal</text><line class="l" x1="390" y1="70" x2="520" y2="70"/><line class="l" x1="380" y1="150" x2="465" y2="150"/><text class="ts tc" x="487" y="168">ranura</text><rect class="madera" x="520" y="40" width="16" height="170"/><text class="ts" x="548" y="56">panel trasero</text><text class="ts" x="548" y="72">(madera dura, encastrado)</text><rect class="f2" x="536" y="96" width="6" height="28" rx="2"/><text class="t tb" x="550" y="104">piezo Ø 27 mm</text><text class="ts" x="550" y="120">pegado por fuera</text><path class="s2" d="M542,110 C600,110 600,150 640,150"/><rect class="caja" x="640" y="132" width="112" height="40" rx="6"/><text class="t tc tb" x="696.0" y="148.5">ESP32</text><text class="ts tc" x="696.0" y="163.5">pico → ADC</text><circle class="bola" cx="150" cy="138" r="12"/><line class="l punteada" x1="164" y1="134" x2="494" y2="110" marker-end="url(#fl-piezo-montaje)"/><text class="ts" x="210" y="112">disparo</text><circle class="bola" cx="497" cy="110" r="12" style="opacity:.45"/><path class="ls punteada" d="M494,124 C488,160 484,190 490,210"/><polygon class="madera" points="440,214 740,262 740,276 440,228"/><circle class="bola" cx="560" cy="222" r="11"/><line class="srojo" x1="640" y1="222" x2="640" y2="252"/><text class="ts" x="600" y="292">barrera IR: confirma el gol</text><text class="ts" x="250" y="236">carril de recogida (bajo el tablero)</text></svg>

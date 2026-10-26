@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 240" width="760" height="240" role="img" aria-label="Detector de pico entre el piezo y el ESP32"><title>Detector de pico entre el piezo y el ESP32</title><style>
+.t{fill:var(--tinta,#1d1d1b);font:13px system-ui,sans-serif}
+.ts{fill:var(--suave,#6b6a65);font:12px system-ui,sans-serif}
+.tc{text-anchor:middle}
+.te{text-anchor:end}
+.tb{font-weight:600}
+.l{stroke:var(--tinta,#1d1d1b);stroke-width:1.5;fill:none}
+.ls{stroke:var(--suave,#6b6a65);stroke-width:1;fill:none}
+.lg{stroke:var(--linea,#e3e1db);stroke-width:1;fill:none}
+.caja{fill:var(--papel,#fff);stroke:var(--suave,#6b6a65);stroke-width:1.2}
+.zona{fill:var(--chip,#efede8);stroke:var(--linea,#e3e1db)}
+.punteada{stroke-dasharray:5 4}
+.madera{fill:var(--madera,#c9a77c);stroke:var(--madera-borde,#9c7a50)}
+.bola{fill:var(--bola,#ecebe6);stroke:var(--tinta,#1d1d1b);stroke-width:1.5}
+.rojo{fill:var(--rojo,#c0392b)}
+.srojo{stroke:var(--rojo,#c0392b);stroke-width:2;fill:none}
+.s1{stroke:var(--serie1,#2563a8);stroke-width:2;fill:none}
+.f1{fill:var(--serie1,#2563a8)}
+.s2{stroke:var(--serie2,#b8860b);stroke-width:2;fill:none}
+.f2{fill:var(--serie2,#b8860b)}
+.sombra1{fill:var(--serie1,#2563a8);opacity:.12}
+.sombra2{fill:var(--serie2,#b8860b);opacity:.15}
+.sombrar{fill:var(--rojo,#c0392b);opacity:.12}
+</style><defs><marker id="fl-piezo-circuito" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--tinta,#1d1d1b)"/></marker></defs><line class="l" x1="60" y1="60" x2="180" y2="60"/><line class="l" x1="230" y1="60" x2="270" y2="60"/><line class="l" x1="300" y1="60" x2="600" y2="60"/><line class="l" x1="60" y1="170" x2="500" y2="170"/><line class="l" x1="280" y1="170" x2="280" y2="180"/><line class="l" x1="268" y1="180" x2="292" y2="180"/><line class="l" x1="273" y1="185" x2="287" y2="185"/><line class="l" x1="278" y1="190" x2="282" y2="190"/><line class="l" x1="60" y1="60" x2="60" y2="98"/><line class="l" x1="60" y1="132" x2="60" y2="170"/><line class="l" x1="44" y1="98" x2="76" y2="98"/><line class="l" x1="44" y1="132" x2="76" y2="132"/><rect class="f2" x="46" y="104" width="28" height="22" rx="2"/><text class="t tb te" x="38" y="120">piezo</text><line class="l" x1="120" y1="60" x2="120" y2="95"/><line class="l" x1="120" y1="135" x2="120" y2="170"/><rect class="caja" x="113" y="95" width="14" height="40"/><text class="t" x="132" y="112">1 MΩ</text><text class="ts" x="132" y="128"></text><rect class="caja" x="180" y="53" width="50" height="14"/><text class="t tc" x="205" y="46">10 kΩ</text><polygon style="fill:var(--tinta,#1d1d1b)" points="270,50 270,70 292,60"/><line class="l" x1="294" y1="49" x2="294" y2="71"/><text class="t tc" x="284" y="44">BAT85</text><line class="l" x1="360" y1="60" x2="360" y2="110"/><line class="l" x1="360" y1="120" x2="360" y2="170"/><line class="l" x1="346" y1="110" x2="374" y2="110"/><line class="l" x1="346" y1="120" x2="374" y2="120"/><text class="t" x="380" y="119">100 nF</text><line class="l" x1="450" y1="60" x2="450" y2="95"/><line class="l" x1="450" y1="135" x2="450" y2="170"/><rect class="caja" x="443" y="95" width="14" height="40"/><text class="t" x="462" y="112">1 MΩ</text><text class="ts" x="462" y="128"></text><line class="l" x1="520" y1="60" x2="520" y2="102"/><line class="l" x1="520" y1="122" x2="520" y2="170"/><polygon style="fill:var(--tinta,#1d1d1b)" points="510,122 530,122 520,104"/><polyline class="l" points="506,100 510,102 530,102 534,104"/><line class="l" x1="500" y1="170" x2="520" y2="170"/><text class="t" x="536" y="119">zener 3,3 V</text><circle style="fill:var(--tinta,#1d1d1b)" cx="360" cy="60" r="3"/><circle style="fill:var(--tinta,#1d1d1b)" cx="450" cy="60" r="3"/><circle style="fill:var(--tinta,#1d1d1b)" cx="520" cy="60" r="3"/><circle style="fill:var(--tinta,#1d1d1b)" cx="120" cy="60" r="3"/><rect class="caja" x="600" y="40" width="140" height="40" rx="6"/><text class="t tc tb" x="670.0" y="56.5">GPIO 35</text><text class="ts tc" x="670.0" y="71.5">ADC1, solo entrada</text><text class="ts tc" x="60" y="214">genera tensión</text><text class="ts tc" x="120" y="230">descarga el piezo</text><text class="ts tc" x="205" y="214">limita corriente</text><text class="ts tc" x="284" y="230">solo deja subir</text><text class="ts tc" x="360" y="214">guarda el pico</text><text class="ts tc" x="450" y="230">lo vacía: τ = 0,1 s</text><text class="ts tc" x="530" y="214">protege el ESP32</text></svg>
