@@ -2,6 +2,8 @@
 
 Un futbolín clásico (un Córdoba antiguo restaurado) que cuenta los goles solo, los canta con un locutor y celebra cada gol con luces, sin que por fuera se note nada.
 
+**Toda la historia, con fotos, vídeo y esquemas, en [arsmagnalab.com/futbolin](https://arsmagnalab.com/futbolin/)** (también en [català](https://arsmagnalab.com/ca/futbolin/) y en [English](https://arsmagnalab.com/en/futbolin/)).
+
 ## Qué hace
 
 - **Cuenta los goles solo.** Una barrera infrarroja en cada carril de recogida de bolas detecta la bola al pasar. Sin taladrar la portería y sin nada que se vea por fuera.
