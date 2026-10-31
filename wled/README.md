@@ -9,7 +9,7 @@ Presets del controlador WLED (probado con WLED 16.0.1 en un Gledopto GL-C-015WL-
 ## Solo efectos de luz
 
 - **No hay marcador en las tiras**: está en la tablet.
-- **Solo efectos puntuales**: las tiras gastan demasiado para ir encendidas con batería. Durante la partida van **apagadas**. Se encienden unos segundos con cada gol, al llegar a bola de partido o a la buena, y en la victoria, y vuelven solas a apagarse.
+- **Solo efectos puntuales**: las tiras gastan demasiado para ir encendidas con batería. Durante la partida van **apagadas**. Se encienden unos segundos con cada gol, al llegar a bola de partido y en la victoria, y vuelven solas a apagarse. **La buena** es la excepción: su efecto sigue hasta el gol que decide.
 - **Piloto**: en reposo solo queda un píxel tenue por tira, para ver que el interruptor general está encendido.
 - **Fallos**: lo único que se queda encendido es el aviso rojo, mientras dura el fallo.
 - **Consumo**: pon el limitador de corriente de WLED (Config → LED Preferences) a unos 1500 mA como red de seguridad.
@@ -27,7 +27,7 @@ Colores del dashboard: Madrid blanco cálido y oro, Barça azul y grana. «Brill
 | 3 | `gol_a` | Playlist: `gol_a_ola` 2 s, `gol_a_fuegos` 1 s, y vuelve a `juego` | — |
 | 4 | `gol_b` | Igual con el Barça | — |
 | 5 | `bola_partido_a` | Playlist: `bola_partido_a_efecto` 8 s y vuelve a `juego` | — |
-| 6 | `la_buena` | Playlist: `la_buena_duelo` 4 s, `la_buena_latido` 6 s, y vuelve a `juego` | — |
+| 6 | `la_buena` | Playlist: `la_buena_latido_1` a `_6`, 10 s cada uno, y se queda en `la_buena_latido_7` hasta el siguiente preset | — |
 | 7 | `fin_a` | Playlist: ola y fuegos del gol (3 s), `fiesta_a` 10 s, y vuelve a `reposo` | — |
 | 8 | `fin_b` | Igual con el Barça | — |
 | 9 | `aviso` | Rojo fijo (atasco con la partida en juego o autotest fallido), hasta que se resuelve | 50 |
@@ -40,10 +40,10 @@ Colores del dashboard: Madrid blanco cálido y oro, Barça azul y grana. «Brill
 | 16 | `fiesta_b` | Fuegos azul y grana | 130 |
 | 17 | `bola_partido_a_efecto` | Las tiras respiran en blanco | 60 |
 | 18 | `bola_partido_b_efecto` | Las tiras respiran en azul | 60 |
-| 19 | `la_buena_duelo` | Cada equipo lanza olas de su color desde su portería (*Running Dual*) | 110 |
-| 20 | `la_buena_latido` | Latido en oro (*Heartbeat*) | 90 |
+| 19–24 | `la_buena_latido_1` a `_6` | Latido en oro (*Heartbeat*): 48, 52, 56, 60, 64 y 68 pulsaciones por minuto | 60 |
+| 25 | `la_buena_latido_7` | Igual, 71 pulsaciones por minuto (el máximo del efecto) | 60 |
 
-Del 11 al 20 son pasos de las playlists: el ESP32 no los manda directamente.
+Del 11 al 25 son pasos de las playlists: el ESP32 no los manda directamente.
 
 Qué manda el ESP32 (`esphome/futbolin.h`, `preset_fase` y `preset_gol`):
 
@@ -56,7 +56,7 @@ Qué manda el ESP32 (`esphome/futbolin.h`, `preset_fase` y `preset_gol`):
 | −1 que cambia la fase | El de la nueva fase |
 | Atasco con partida en juego, autotest fallido | 9 hasta que se resuelve |
 | `switch.futbolin_efectos_luz` apagado (el interruptor de luces del dashboard) | `{"on": false}` al apagarlo, y después nada (las tiras quedan para HA) |
-| Batería por debajo de `number.futbolin_luces_bateria_minima` (25 % por defecto) 60 s seguidos | `{"on": false}` y nada más hasta que el % sube al mínimo + 10; entonces, el de la fase. `binary_sensor.futbolin_luces_cortadas_por_bateria` encendido mientras tanto. No se aplica en modo enchufado ni sin lectura de batería |
+| Batería por debajo de `number.futbolin_luces_bateria_minima` (20 % por defecto) 60 s seguidos | `{"on": false}` y nada más hasta que el % sube al mínimo + 20; entonces, el de la fase. `binary_sensor.futbolin_luces_cortadas_por_bateria` encendido mientras tanto. No se aplica en modo enchufado ni sin lectura de batería |
 
 Si WLED no responde, el gol se cuenta igual y solo queda un aviso en el log del ESP32.
 

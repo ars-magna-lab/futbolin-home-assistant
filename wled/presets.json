@@ -152,18 +152,30 @@
   "playlist": {
    "ps": [
     19,
-    20
+    20,
+    21,
+    22,
+    23,
+    24
    ],
    "dur": [
-    40,
-    60
+    100,
+    100,
+    100,
+    100,
+    100,
+    100
    ],
    "transition": [
+    0,
+    0,
+    0,
+    0,
     0,
     0
    ],
    "repeat": 1,
-   "end": 2,
+   "end": 25,
    "r": false
   }
  },
@@ -963,90 +975,9 @@
   ]
  },
  "19": {
-  "n": "la_buena_duelo",
+  "n": "la_buena_latido_1",
   "on": true,
-  "bri": 110,
-  "transition": 0,
-  "mainseg": 0,
-  "seg": [
-   {
-    "id": 0,
-    "start": 0,
-    "stop": 28,
-    "grp": 1,
-    "spc": 0,
-    "of": 0,
-    "on": true,
-    "frz": false,
-    "bri": 255,
-    "n": "Tira A",
-    "col": [
-     [
-      255,
-      225,
-      170
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      60,
-      255
-     ]
-    ],
-    "fx": 52,
-    "sx": 200,
-    "ix": 60,
-    "pal": 0,
-    "sel": true,
-    "rev": false,
-    "mi": false
-   },
-   {
-    "id": 1,
-    "start": 28,
-    "stop": 56,
-    "grp": 1,
-    "spc": 0,
-    "of": 0,
-    "on": true,
-    "frz": false,
-    "bri": 255,
-    "n": "Tira B",
-    "col": [
-     [
-      255,
-      225,
-      170
-     ],
-     [
-      0,
-      0,
-      0
-     ],
-     [
-      0,
-      60,
-      255
-     ]
-    ],
-    "fx": 52,
-    "sx": 200,
-    "ix": 60,
-    "pal": 0,
-    "sel": true,
-    "rev": false,
-    "mi": false
-   }
-  ]
- },
- "20": {
-  "n": "la_buena_latido",
-  "on": true,
-  "bri": 90,
+  "bri": 60,
   "transition": 0,
   "mainseg": 0,
   "seg": [
@@ -1079,7 +1010,7 @@
      ]
     ],
     "fx": 100,
-    "sx": 120,
+    "sx": 64,
     "ix": 128,
     "pal": 0,
     "sel": true,
@@ -1115,7 +1046,493 @@
      ]
     ],
     "fx": 100,
-    "sx": 120,
+    "sx": 64,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "20": {
+  "n": "la_buena_latido_2",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 96,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 96,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "21": {
+  "n": "la_buena_latido_3",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 128,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 128,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "22": {
+  "n": "la_buena_latido_4",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 160,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 160,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "23": {
+  "n": "la_buena_latido_5",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 192,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 192,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "24": {
+  "n": "la_buena_latido_6",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 224,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 224,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   }
+  ]
+ },
+ "25": {
+  "n": "la_buena_latido_7",
+  "on": true,
+  "bri": 60,
+  "transition": 0,
+  "mainseg": 0,
+  "seg": [
+   {
+    "id": 0,
+    "start": 0,
+    "stop": 28,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira A",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 255,
+    "ix": 128,
+    "pal": 0,
+    "sel": true,
+    "rev": false,
+    "mi": false
+   },
+   {
+    "id": 1,
+    "start": 28,
+    "stop": 56,
+    "grp": 1,
+    "spc": 0,
+    "of": 0,
+    "on": true,
+    "frz": false,
+    "bri": 255,
+    "n": "Tira B",
+    "col": [
+     [
+      255,
+      160,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "fx": 100,
+    "sx": 255,
     "ix": 128,
     "pal": 0,
     "sel": true,

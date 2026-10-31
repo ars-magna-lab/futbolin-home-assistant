@@ -61,16 +61,20 @@ OLA = 20
 FUEGOS = 10
 FIESTA = 100
 TENSION = 80                    # bola de partido
-DUELO, LATIDO = 40, 60          # la buena
+SUBIDA = 100                    # la buena: cada paso del latido, hasta el último
 
 # ---------------------------------------------------------------- IDs (contrato)
 REPOSO, JUEGO, GOL_A, GOL_B, BOLA_PARTIDO_A, LA_BUENA, FIN_A, FIN_B, AVISO, BOLA_PARTIDO_B = range(1, 11)
 # Pasos de las playlists (el ESP32 no los manda directamente)
 (OLA_A, OLA_B, FUEGOS_A, FUEGOS_B, FIESTA_A, FIESTA_B,
- TENSION_A, TENSION_B, DUELO_BUENA, LATIDO_BUENA) = range(11, 21)
+ TENSION_A, TENSION_B) = range(11, 19)
+# El latido de la buena: en Heartbeat el ritmo es 40 + sx / 8 pulsaciones por minuto.
+# De 48 a 68 en un minuto y se queda en 71, el máximo del efecto.
+BRILLO_BUENA = 60
+LATIDOS = {19 + i: sx for i, sx in enumerate((64, 96, 128, 160, 192, 224, 255))}
 
 # ---------------------------------------------------------------- efectos de WLED 16.0.1 (/json/effects)
-SOLID, BREATHE, RUNNING, FIREWORKS, RUNNING_DUAL, SOLID_PATTERN, HEARTBEAT = 0, 2, 15, 42, 52, 83, 100
+SOLID, BREATHE, RUNNING, FIREWORKS, SOLID_PATTERN, HEARTBEAT = 0, 2, 15, 42, 83, 100
 PALETA_COLORES_1_2 = 3          # /json/palettes: «* Colors 1&2»
 
 
@@ -120,7 +124,6 @@ def contrario(equipo):
 
 
 def presets():
-    bajo, alto = ("a", "b") if PORTERIA_A_EN_PIXEL_0 else ("b", "a")
     p = {
         # Piloto de encendido: un solo píxel tenue por tira, el primero (Solid
         # Pattern: 1 píxel encendido y 256 apagados)
@@ -131,17 +134,16 @@ def presets():
         GOL_B: playlist("gol_b", [(OLA_B, OLA), (FUEGOS_B, FUEGOS)], JUEGO),
         BOLA_PARTIDO_A: playlist("bola_partido_a", [(TENSION_A, TENSION)], JUEGO),
         BOLA_PARTIDO_B: playlist("bola_partido_b", [(TENSION_B, TENSION)], JUEGO),
-        LA_BUENA: playlist("la_buena", [(DUELO_BUENA, DUELO), (LATIDO_BUENA, LATIDO)], JUEGO),
+        # La buena: el latido se acelera y se queda en el último paso hasta que el
+        # gol que decide lance la fiesta (o una corrección cambie la fase)
+        LA_BUENA: playlist("la_buena", [(p, SUBIDA) for p in list(LATIDOS)[:-1]], list(LATIDOS)[-1]),
         FIN_A: playlist("fin_a", [(OLA_A, OLA), (FUEGOS_A, FUEGOS), (FIESTA_A, FIESTA)], REPOSO),
         FIN_B: playlist("fin_b", [(OLA_B, OLA), (FUEGOS_B, FUEGOS), (FIESTA_B, FIESTA)], REPOSO),
         # Atasco o autotest fallido: rojo fijo hasta que se resuelve
         AVISO: preset("aviso", 50, fx=SOLID, col=(ROJO,)),
-        # Duelo de la buena: cada equipo lanza una ola desde su portería
-        DUELO_BUENA: preset("la_buena_duelo", 110, fx=RUNNING_DUAL,
-                            col=(COLORES[bajo][0], NEGRO, COLORES[alto][0]), sx=200, ix=60),
-        # y después las tiras laten en oro
-        LATIDO_BUENA: preset("la_buena_latido", 90, fx=HEARTBEAT, col=(ORO, NEGRO), sx=120),
     }
+    for n, (latido, sx) in enumerate(LATIDOS.items(), 1):
+        p[latido] = preset(f"la_buena_latido_{n}", BRILLO_BUENA, fx=HEARTBEAT, col=(ORO, NEGRO), sx=sx)
     for e, ola, fuegos, fiesta, tension in (("a", OLA_A, FUEGOS_A, FIESTA_A, TENSION_A),
                                             ("b", OLA_B, FUEGOS_B, FIESTA_B, TENSION_B)):
         principal, segundo = COLORES[e]

@@ -28,8 +28,13 @@
 # la usa (futbolin_pantalla, futbolin_musica, futbolin_musica_partida) y los
 # botones de música y «Salir» del dashboard.
 #
-# Recargar sin reiniciar:  template.reload, script.reload, input_boolean.reload
-# y automation.reload
+# Recordatorios: apagar el futbolín si lleva 30 min sin jugarse y cargar las
+# baterías si bajan o pasa mucho tiempo sin encenderse (por notify.notify). HA
+# recuerda el último % y cuándo lo vio encendido, porque apagado el ESP32 no publica
+# nada. El % es lo que queda para gastar: 0 % es la media carga de donde no conviene bajar.
+#
+# Recargar sin reiniciar:  template.reload, script.reload, input_boolean.reload,
+# input_button.reload, input_number.reload, input_datetime.reload y automation.reload
 
 input_boolean:
   # Si suena música en las partidas. El botón del marcador y la voz la cambian
@@ -37,12 +42,46 @@ input_boolean:
     name: Futbolín música
     icon: mdi:music
 
+input_button:
+  # El botón de la música del marcador. El usuario «tablet» no es administrador y
+  # no puede recargar Spotify: pulsa esto y lo hace futbolin_musica_partida
+  futbolin_musica_boton:
+    name: Futbolín botón de la música
+    icon: mdi:music
+
+input_number:
+  # El último % de batería visto con el futbolín encendido
+  futbolin_bateria_recordada:
+    name: Futbolín batería recordada
+    icon: mdi:battery-clock
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+
+input_datetime:
+  futbolin_visto:
+    name: Futbolín visto encendido
+    icon: mdi:clock-check-outline
+    has_date: true
+    has_time: true
+  # Último gol, corte de haz o cambio de fase. El recordatorio de apagar lo
+  # adelanta al avisar, para repetir cada 30 min
+  futbolin_ultima_actividad:
+    name: Futbolín última actividad
+    icon: mdi:soccer
+    has_date: true
+    has_time: true
+
 script:
   futbolin_musica:
     alias: Futbolín · música
     description: >-
       Pone o quita la música de las partidas (Spotify en la tablet). «alternar»
-      la quita si está sonando y si no la pone.
+      la quita si está sonando y si no la pone. Recarga la integración de
+      Spotify, algo que solo puede un administrador: desde el dashboard se llega
+      por input_button.futbolin_musica_boton (ver futbolin_musica_partida).
     mode: queued
     fields:
       accion:
@@ -52,6 +91,10 @@ script:
         selector:
           select:
             options: [poner, quitar, alternar]
+    variables:
+      # Cómo se llama la tablet en Spotify Connect (expresión regular: el nombre
+      # puede cambiar con la app). También en futbolin_musica_partida y en el dashboard
+      tablet: "Tablet"
     sequence:
       # El estado de Spotify al momento: la integración sondea cada 30 s, y
       # pausar lo que ya está en pausa falla («Restriction violated»)
@@ -62,7 +105,7 @@ script:
       - variables:
           sonando: >-
             {{ is_state('media_player.spotify', 'playing')
-               and state_attr('media_player.spotify', 'source') == 'Tablet' }}
+               and (state_attr('media_player.spotify', 'source') or '') is search(tablet) }}
           poner: "{{ accion == 'poner' or (accion == 'alternar' and not sonando) }}"
       - action: "input_boolean.turn_{{ 'on' if poner else 'off' }}"
         target:
@@ -70,43 +113,53 @@ script:
       - if: "{{ poner and not sonando }}"
         then:
           # Con Spotify parado un rato, HA deja de ver la tablet (la lista de
-          # dispositivos se refresca cada pocos minutos) o Android ha cerrado
-          # la app (la tablet va justa de memoria): se recarga la integración
-          # y, si hace falta, se abre Spotify un momento y se vuelve al marcador
-          - if: "{{ 'Tablet' not in (state_attr('media_player.spotify', 'source_list') or []) }}"
+          # dispositivos solo se refresca cada 5 min o al recargar) o Android ha
+          # cerrado la app (la tablet va justa de memoria): se recarga la
+          # integración y, si hace falta, se abre Spotify y se vuelve al marcador
+          - if: "{{ (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | list | count == 0 }}"
             then:
               - action: homeassistant.reload_config_entry
-                target:
-                  entity_id: media_player.spotify
-              - wait_template: "{{ 'Tablet' in (state_attr('media_player.spotify', 'source_list') or []) }}"
-                timeout: 10
-          - if: "{{ 'Tablet' not in (state_attr('media_player.spotify', 'source_list') or []) }}"
+                data:
+                  entry_id: "{{ config_entry_id('media_player.spotify') }}"
+              - wait_template: "{{ (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | list | count > 0 }}"
+                timeout: 2
+          - if: "{{ (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | list | count == 0 }}"
             then:
               - action: esphome.ks_tablet_launch_app
                 data:
                   package_name: com.spotify.music
-              - delay: 6
-              - action: homeassistant.reload_config_entry
-                target:
-                  entity_id: media_player.spotify
-              - wait_template: "{{ 'Tablet' in (state_attr('media_player.spotify', 'source_list') or []) }}"
-                timeout: 15
+              - repeat:
+                  sequence:
+                    - delay: 3
+                    - action: homeassistant.reload_config_entry
+                      data:
+                        entry_id: "{{ config_entry_id('media_player.spotify') }}"
+                    - wait_template: "{{ (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | list | count > 0 }}"
+                      timeout: 2
+                  until: "{{ repeat.index >= 6 or (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | list | count > 0 }}"
               - action: button.press
                 target:
                   entity_id: button.tablet_bring_to_front
-          # Parado del todo, Spotify solo deja elegir salida: al elegir la
-          # tablet queda en pausa allí y ya admite poner una lista
-          - if: "{{ state_attr('media_player.spotify', 'source') != 'Tablet' }}"
+          # Parado del todo, Spotify solo deja elegir salida: al elegir la tablet
+          # queda en pausa allí y ya admite poner una lista. Hay que esperar a
+          # que HA lo vea, y update_entity no vale: repetido en menos de 10 s no
+          # refresca hasta pasados esos 10 s. Recargar sí lee el estado al momento.
+          - if: "{{ not (state_attr('media_player.spotify', 'source') or '') is search(tablet) }}"
             then:
               - action: media_player.select_source
                 target:
                   entity_id: media_player.spotify
                 data:
-                  source: Tablet
-              - delay: 2
-              - action: homeassistant.update_entity
-                target:
-                  entity_id: media_player.spotify
+                  source: "{{ (state_attr('media_player.spotify', 'source_list') or []) | select('search', tablet) | first | default('') }}"
+              - repeat:
+                  sequence:
+                    - delay: 2
+                    - action: homeassistant.reload_config_entry
+                      data:
+                        entry_id: "{{ config_entry_id('media_player.spotify') }}"
+                    - wait_template: "{{ (state_attr('media_player.spotify', 'supported_features') or 0) | bitwise_and(512) > 0 }}"
+                      timeout: 2
+                  until: "{{ repeat.index >= 5 or (state_attr('media_player.spotify', 'supported_features') or 0) | bitwise_and(512) > 0 }}"
           - action: media_player.play_media
             target:
               entity_id: media_player.spotify
@@ -115,13 +168,20 @@ script:
               # mundiales y bailables con ritmo
               media_content_id: spotify:playlist:CAMBIA_POR_EL_ID_DE_TU_LISTA
               media_content_type: playlist
-          # Aleatorio después de poner la lista: antes no lo aplica a la primera canción
+          # Aleatorio después de poner la lista: antes no lo aplica a la primera
+          # canción, que sería siempre la primera de la lista. Por eso se salta a
+          # la siguiente, que ya es al azar (play_media de HA no admite elegir la
+          # canción de inicio)
           - action: media_player.shuffle_set
             continue_on_error: true
             target:
               entity_id: media_player.spotify
             data:
               shuffle: true
+          - action: media_player.media_next_track
+            continue_on_error: true
+            target:
+              entity_id: media_player.spotify
       - if: "{{ not poner and sonando }}"
         then:
           - action: media_player.media_pause
@@ -390,10 +450,15 @@ automation:
   # quitado con el botón o por voz) y sigue entre partidas, que continúe la
   # fiesta. Se para al apagar el futbolín o al
   # cerrar el marcador; pararla aquí no cambia input_boolean.futbolin_musica:
-  # la siguiente partida vuelve a sonar.
+  # la siguiente partida vuelve a sonar. También atiende el botón del marcador y
+  # baraja la lista si se ha puesto a mano desde la app de Spotify.
   - id: futbolin_musica_partida
     alias: Futbolín · la música sigue a la partida
     mode: queued
+
+    variables:
+      # Ver el script futbolin_musica
+      tablet: "Tablet"
 
     triggers:
       - trigger: event
@@ -411,9 +476,44 @@ automation:
           - unavailable
           - unknown
         id: pagina
+      - trigger: state
+        entity_id: input_button.futbolin_musica_boton
+        id: boton
+      # La lista puesta a mano en la app suena en orden: empezaría siempre por la
+      # misma canción. HA se entera al sondear (hasta 30 s después)
+      - trigger: template
+        value_template: >-
+          {{ is_state('media_player.spotify', 'playing')
+             and state_attr('media_player.spotify', 'shuffle') == false
+             and state_attr('media_player.spotify', 'media_playlist') == 'Futbolín' }}
+        id: en_orden
 
     actions:
       - choose:
+          - conditions:
+              - condition: trigger
+                id: boton
+            sequence:
+              - action: script.futbolin_musica
+                data:
+                  accion: alternar
+          # Se vuelve a mirar porque el modo es en cola: el script ya pudo barajar
+          - conditions: >-
+              {{ trigger.id == 'en_orden'
+                 and is_state('media_player.spotify', 'playing')
+                 and state_attr('media_player.spotify', 'shuffle') == false
+                 and (state_attr('media_player.spotify', 'source') or '') is search(tablet) }}
+            sequence:
+              - action: media_player.shuffle_set
+                continue_on_error: true
+                target:
+                  entity_id: media_player.spotify
+                data:
+                  shuffle: true
+              - action: media_player.media_next_track
+                continue_on_error: true
+                target:
+                  entity_id: media_player.spotify
           - conditions:
               - condition: trigger
                 id: empieza
@@ -435,7 +535,7 @@ automation:
                   entity_id: media_player.spotify
               - if: >-
                   {{ is_state('media_player.spotify', 'playing')
-                     and state_attr('media_player.spotify', 'source') == 'Tablet' }}
+                     and (state_attr('media_player.spotify', 'source') or '') is search(tablet) }}
                 then:
                   - action: media_player.media_pause
                     continue_on_error: true
@@ -446,6 +546,174 @@ automation:
                     continue_on_error: true
                     target:
                       entity_id: media_player.spotify
+
+  - id: futbolin_actividad
+    alias: Futbolín · apunta la última actividad
+    mode: restart
+
+    triggers:
+      - trigger: state
+        entity_id:
+          - sensor.futbolin_marcador_a
+          - sensor.futbolin_marcador_b
+          - sensor.futbolin_marcador_fase
+          - sensor.futbolin_ultimo_corte
+      - trigger: state
+        entity_id: binary_sensor.futbolin_vivo
+        to: "on"
+
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.futbolin_ultima_actividad
+        data:
+          timestamp: "{{ now().timestamp() }}"
+
+  - id: futbolin_recordar_apagar
+    alias: Futbolín · recuerda apagarlo si no se juega
+    mode: single
+
+    triggers:
+      - trigger: template
+        value_template: >-
+          {{ now().timestamp() - state_attr('input_datetime.futbolin_ultima_actividad', 'timestamp') | float(now().timestamp()) >= 1800 }}
+
+    # Enchufado no gasta batería: da igual que se quede encendido
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.futbolin_vivo
+        state: "on"
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: switch.futbolin_modo_enchufado
+            state: "on"
+
+    actions:
+      - action: notify.notify
+        data:
+          title: ¿Apagas el futbolín?
+          message: Lleva 30 minutos encendido sin jugarse y está gastando batería.
+          data:
+            channel: Futbolín
+            tag: futbolin_apagar
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.futbolin_ultima_actividad
+        data:
+          timestamp: "{{ now().timestamp() }}"
+
+  # Apagado no publica nada, así que HA guarda el último dato. El % se ignora los
+  # primeros 5 min: al arrancar, la primera lectura sale muy baja.
+  - id: futbolin_bateria_memoria
+    alias: Futbolín · recuerda la batería y cuándo se encendió
+    mode: single
+
+    triggers:
+      - trigger: time_pattern
+        minutes: "/5"
+
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.futbolin_vivo
+        state: "on"
+
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.futbolin_visto
+        data:
+          timestamp: "{{ now().timestamp() }}"
+      - if: >-
+          {{ is_number(states('sensor.futbolin_bateria'))
+             and states('sensor.futbolin_encendido') | int(0) >= 300
+             and not is_state('switch.futbolin_modo_enchufado', 'on') }}
+        then:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.futbolin_bateria_recordada
+            data:
+              value: "{{ states('sensor.futbolin_bateria') | float | round(0) }}"
+
+  # Recordar cargar: jugando, cuando el ESP32 corta las luces para ahorrar (por
+  # debajo del 20 %, ve acabando) y al llegar al 0 %, el límite del plomo; al apagarlo por debajo del 40 %; y parado, a los
+  # 14 días, porque a media carga el plomo se sulfata, o a los 60 si estaba por
+  # encima del 80 %. Se repite cada semana hasta que se encienda y lo vea.
+  - id: futbolin_recordar_cargar
+    alias: Futbolín · recuerda cargar las baterías
+    mode: queued
+
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.futbolin_bateria
+        below: 1
+        for: "00:10:00"
+        id: limite
+      - trigger: state
+        entity_id: binary_sensor.futbolin_luces_cortadas_por_bateria
+        from: "off"
+        to: "on"
+        id: ahorro
+      - trigger: state
+        entity_id: binary_sensor.futbolin_vivo
+        from: "on"
+        to: "off"
+        for: "00:01:00"
+        id: apagado
+      - trigger: time
+        at: "20:00:00"
+        id: diario
+
+    variables:
+      recordada: "{{ states('input_number.futbolin_bateria_recordada') | float(100) }}"
+      dias: >-
+        {{ ((now().timestamp() - state_attr('input_datetime.futbolin_visto', 'timestamp') | float(now().timestamp())) / 86400) | int }}
+      limite_dias: "{{ 14 if recordada < 80 else 60 }}"
+
+    actions:
+      - choose:
+          - conditions: "{{ trigger.id == 'limite' and not is_state('switch.futbolin_modo_enchufado', 'on') }}"
+            sequence:
+              - action: notify.notify
+                data:
+                  title: Baterías del futbolín al límite
+                  message: >-
+                    {{ states('sensor.futbolin_bateria') | float | round(0) | int }} %.
+                    Cárgalas en cuanto puedas: seguir por debajo estropea el plomo.
+                  data:
+                    channel: Futbolín
+                    tag: futbolin_baterias
+          - conditions: "{{ trigger.id == 'ahorro' }}"
+            sequence:
+              - action: notify.notify
+                data:
+                  title: "Futbolín en ahorro: tiras apagadas"
+                  message: >-
+                    Batería al {{ states('sensor.futbolin_bateria') | float | round(0) | int }} %.
+                    Los goles se siguen contando. Cárgalas al acabar.
+                  data:
+                    channel: Futbolín
+                    tag: futbolin_ahorro
+          - conditions: "{{ trigger.id == 'apagado' and recordada < 40 }}"
+            sequence:
+              - action: notify.notify
+                data:
+                  title: Carga las baterías del futbolín
+                  message: Se han quedado al {{ recordada | int }} %. Mejor no dejarlas así.
+                  data:
+                    channel: Futbolín
+                    tag: futbolin_baterias
+          - conditions: "{{ trigger.id == 'diario' and dias >= limite_dias and (dias - limite_dias) % 7 == 0 }}"
+            sequence:
+              - action: notify.notify
+                data:
+                  title: Revisa las baterías del futbolín
+                  message: >-
+                    Lleva {{ dias }} días sin encenderse y se quedaron al {{ recordada | int }} %.
+                    Cárgalas y enciéndelo unos minutos para que HA lo vea.
+                  data:
+                    channel: Futbolín
+                    tag: futbolin_baterias
 
   # La voz. Frases propias de HA (disparadores de conversación): la pipeline
   # de Assist las resuelve en local antes de llamar al LLM (prefer_local_intents),

@@ -24,7 +24,7 @@ substitutions:
   wled_timeout: 500ms         # lo más que espera a WLED; mientras, el bucle se para (la ISR no)
   gol_luz_ms: "3500"          # efecto de gol en WLED (3 s, wled/) y un margen
   luces_bateria_ms: "60000"   # tiempo por debajo del mínimo antes de cortar las luces
-  luces_histeresis: "10"      # % por encima del mínimo para que vuelvan
+  luces_histeresis: "20"      # % por encima del mínimo para que vuelvan
 
 esphome:
   name: futbolin
@@ -222,8 +222,8 @@ script:
                       format: "Tiras: WLED no responde (apagar)"
                       level: WARN
 
-  # Pone las tiras como toca a la fase (reposo = piloto, juego = apagadas, y el
-  # efecto corto de bola de partido o la buena), o en aviso si hay un atasco con
+  # Pone las tiras como toca a la fase (reposo = piloto, juego = apagadas, el
+  # efecto corto de bola de partido o el de la buena, que no para), o en aviso si hay un atasco con
   # la partida en juego o el autotest ha fallado
   - id: luz_fase
     then:
@@ -395,12 +395,13 @@ sensor:
     device_class: voltage
     accuracy_decimals: 2
     filters:
-      - multiply: 5.933   # (100 + 20) / 20 = 6,0, ajustado con el multímetro (cambia con cada ADC)
+      - multiply: 5.957   # (100 + 20) / 20 = 6,0, ajustado con el multímetro (cambia con cada ADC)
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
-  # Plomo en reposo: 11,8 V = 0 %, 12,7 V = 100 %. La curva es de reposo, pero
-  # se mide con carga: con las tiras encendidas (~1 A) el plomo cae casi 0,5 V
+  # El % es lo que queda para gastar, no la carga real: 0 % son 12,2 V, la mitad
+  # de la carga, de donde no conviene bajar el plomo. 100 % son 12,7 V, en reposo.
+  # Seguiría funcionando por debajo de 0 %. La curva es de reposo, pero se mide con carga: con las tiras encendidas (~1 A) el plomo cae casi 0,5 V
   # y tarda minutos en recuperarse. Por eso el % sale de
   # la tensión más alta de los últimos 10 min (20 lecturas de 30 s): los efectos
   # son puntuales y solo la hunden un rato. Con las tiras encendidas más de 10 min
@@ -422,10 +423,10 @@ sensor:
       if (n < 20) n++;
       float v = lecturas[0];
       for (int i = 1; i < n; i++) v = std::max(v, lecturas[i]);
-      static const float tension[] = {11.8f, 12.0f, 12.2f, 12.4f, 12.7f};
-      static const float carga[] = {0, 25, 50, 75, 100};
+      static const float tension[] = {12.2f, 12.4f, 12.7f};
+      static const float carga[] = {0, 50, 100};
       if (v <= tension[0]) return 0;
-      for (int i = 1; i < 5; i++)
+      for (int i = 1; i < 3; i++)
         if (v <= tension[i])
           return carga[i - 1] + (v - tension[i - 1]) / (tension[i] - tension[i - 1]) * (carga[i] - carga[i - 1]);
       return 100;
@@ -635,7 +636,7 @@ number:
     min_value: 5
     max_value: 60
     step: 5
-    initial_value: 25
+    initial_value: 20
     optimistic: true
     restore_value: true
     entity_category: config

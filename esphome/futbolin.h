@@ -143,9 +143,9 @@ enum Preset {
 };
 
 // El preset de una fase. Las tiras solo hacen efectos puntuales: juego las
-// apaga, y bola de partido y la buena son playlists de unos segundos que acaban
-// en juego. Con la partida terminada, reposo: la fiesta solo sale con el gol
-// que la gana (preset_gol).
+// apaga, bola de partido es una playlist de unos segundos que acaba en juego y
+// la buena se acelera poco a poco y se queda así hasta el gol que decide. Con la partida terminada, reposo:
+// la fiesta solo sale con el gol que la gana (preset_gol).
 static int preset_fase(int f) {
   switch (f) {
     case NORMAL: return PRESET_JUEGO;

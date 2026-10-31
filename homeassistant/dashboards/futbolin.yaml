@@ -106,6 +106,7 @@ views:
           - binary_sensor.futbolin_autotest
           - switch.futbolin_modo_enchufado
           - switch.futbolin_efectos_luz
+          - binary_sensor.futbolin_luces_cortadas_por_bateria
           - light.futbolin_tiras
           - media_player.spotify
 
@@ -134,9 +135,10 @@ views:
                 bateria: parseInt(s('sensor.futbolin_bateria')),
                 enchufado: s('switch.futbolin_modo_enchufado') === 'on',
                 efectos: s('switch.futbolin_efectos_luz') !== 'off',
+                ahorro: s('binary_sensor.futbolin_luces_cortadas_por_bateria') === 'on',
                 // La música de las partidas: Spotify sonando en la tablet
                 musica: s('media_player.spotify') === 'playing'
-                        && states['media_player.spotify'].attributes.source === 'Tablet',
+                        && /Tablet/.test(states['media_player.spotify'].attributes.source),
                 atascoA: s('binary_sensor.futbolin_atasco_a') === 'on',
                 atascoB: s('binary_sensor.futbolin_atasco_b') === 'on',
                 autotestOk: s('binary_sensor.futbolin_autotest') !== 'off',
@@ -174,13 +176,14 @@ views:
                   chips += chip('error', 'mdi:alert', `Atasco: portería del ${m.atascoA ? nombre.a : nombre.b}`);
                 chips += m.autotestOk ? chip('ok', 'mdi:check-network-outline', 'Sensores OK')
                                       : chip('aviso', 'mdi:alert-circle-outline', 'Revisar sensores');
-                chips += m.efectos ? chip('', 'mdi:lightbulb-auto-outline', 'Efectos')
+                chips += m.ahorro ? chip('aviso', 'mdi:leaf', 'Ahorro: sin luces')
+                       : m.efectos ? chip('', 'mdi:lightbulb-auto-outline', 'Efectos')
                                    : chip('aviso', 'mdi:lightbulb-off-outline', 'Efectos apagados');
                 if (m.enchufado) chips += chip('', 'mdi:power-plug-outline', 'Enchufado');
                 else if (!isNaN(m.bateria)) {
                   const p = m.bateria;
                   const icono = p >= 95 ? 'mdi:battery' : `mdi:battery-${Math.max(10, Math.round(p / 10) * 10)}`;
-                  chips += chip(p <= 10 ? 'error' : p <= 20 ? 'aviso' : '', icono, `${p} %`);
+                  chips += chip(p <= 0 ? 'error' : p <= 20 ? 'aviso' : '', icono, `${p} %`);
                 }
               }
 
@@ -500,11 +503,12 @@ views:
               show_name: false
               show_icon: true
               icon: "[[[ return variables.m.musica ? 'mdi:music' : 'mdi:music-off' ]]]"
+              # Por el input_button: la tablet no es administradora (ver packages/futbolin.yaml)
               tap_action:
                 action: perform-action
-                perform_action: script.futbolin_musica
-                data:
-                  accion: alternar
+                perform_action: input_button.press
+                target:
+                  entity_id: input_button.futbolin_musica_boton
               styles:
                 card:
                   - height: 64px

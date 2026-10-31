@@ -58,7 +58,7 @@ Los nombres de equipo, escudos y colores (Real Madrid y Barcelona) están en el 
 | `sensor.tablet_current_page`, `select.tablet_dashboard_view`, `switch.tablet_screensaver`, `light.tablet_screen`, `button.tablet_bring_to_front`, `esphome.ks_tablet_launch_app` | La tablet con Kiosk Satellite (app Android que se integra con ESPHome) o similar: página actual, dashboard que enseña, salvapantallas, pantalla, traerla al frente y abrir una app | `packages/futbolin.yaml` |
 | `lovelace/0` | La página «de siempre» a la que vuelve la tablet al cerrar el marcador | `script.futbolin_cerrar_marcador` |
 | `media_player.spotify` | La integración de Spotify | Paquete y dashboard |
-| `'Tablet'` | El nombre de la tablet como dispositivo de Spotify Connect | Paquete y dashboard |
+| `Tablet` | El nombre de la tablet en Spotify Connect, como expresión regular | Variable `tablet` del paquete y `musica` del dashboard |
 | `spotify:playlist:CAMBIA_POR_EL_ID_DE_TU_LISTA` | La lista de las partidas | `script.futbolin_musica` |
 | `tablet` (usuario) | El usuario de HA de la tablet, para kiosk-mode | Cabecera del dashboard |
 
@@ -72,7 +72,8 @@ Si no usas tablet con control remoto o música, quita las automatizaciones `futb
 - **Apagado**: al cortar la corriente, la API de ESPHome tarda unos 90 s en dar el ESP32 por perdido. El ESP32 publica su tiempo encendido cada 5 s y `binary_sensor.futbolin_vivo` lo usa de latido: el dashboard enseña «Futbolín apagado» en unos 15 s.
 - **Al encender el futbolín** (`futbolin_encendido`), el marcador sale solo en la tablet y, si no hay partida, empieza una (con la presentación del locutor).
 - **Pantalla**: con el marcador abierto la tablet no se apaga (`futbolin_pantalla`).
-- **Música**: suena al empezar cada partida (si no se ha quitado), sigue entre partidas y se para al apagar el futbolín o al cerrar el marcador. Mientras habla el locutor, Android la baja; el truco está explicado en `locutor/README.md`.
+- **Recordatorios** (`notify.notify`): apagar el futbolín si lleva 30 min encendido sin goles ni cortes de haz (se repite cada 30 min; no en modo enchufado). Cargar las baterías: al entrar en ahorro (por debajo del 20 % el ESP32 apaga las tiras y se sigue jugando; también sale en el marcador), al llegar al 0 %, al apagarlo por debajo del 40 %, y a los 14 días sin encenderlo (60 si quedó por encima del 80 %), repetido cada semana.
+- **Música**: suena al empezar cada partida (si no se ha quitado), en aleatorio y sin empezar siempre por la misma canción, sigue entre partidas y se para al apagar el futbolín o al cerrar el marcador. Mientras habla el locutor, Android la baja; el truco está explicado en `locutor/README.md`.
 - **Sonidos y locutor**: los reproduce el propio dashboard (`<audio>` y Web Audio), así que solo suenan con el marcador abierto. El momento de cada gol lo calcula la plantilla `sensor.futbolin_ultimo_gol` (atributo `locutor`).
 
 ## Voz
@@ -104,5 +105,7 @@ Con el futbolín apagado (y sin simulación), las frases de partida responden «
 | `binary_sensor.futbolin_vivo` | on/off | Latido del ESP32 |
 | `input_boolean.futbolin_simulacion`, `futbolin_sim_partida`, `input_number.futbolin_sim_goles_a` / `_b` | | Simulación |
 | `input_boolean.futbolin_musica` | on/off | Si suena música en las partidas |
+| `input_button.futbolin_musica_boton` | | El botón de la música del marcador: recargar Spotify requiere administrador y lo hace una automatización |
+| `input_number.futbolin_bateria_recordada`, `input_datetime.futbolin_visto`, `input_datetime.futbolin_ultima_actividad` | | Último %, última vez encendido y última actividad, para los recordatorios |
 | `script.futbolin_accion` | | `nueva`, `anular`, `gol_a_mas`, `gol_a_menos`, `gol_b_mas`, `gol_b_menos` |
 | `script.futbolin_musica`, `script.futbolin_cerrar_marcador` | | Música y botón «Salir» |

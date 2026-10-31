@@ -78,7 +78,7 @@ El ESP32, el buck, el bus de 12 V y la interfaz (resistencias y divisor soldados
 
 ![Modo enchufado](img/modo-enchufado.svg)
 
-**Consumo**: las tiras gastan demasiado para ir encendidas toda la partida con batería, así que solo hacen **efectos puntuales** (gol, bola de partido, la buena y victoria). Con las baterías de plomo, el ESP32 corta las luces si la batería baja de un mínimo configurable.
+**Consumo**: las tiras gastan demasiado para ir encendidas toda la partida con batería, así que solo hacen **efectos puntuales** (gol, bola de partido, la buena y victoria). Con las baterías de plomo, el ESP32 corta las luces si la batería baja de un mínimo configurable (20 % por defecto) y se sigue jugando sin ellas.
 
 Para montar el banco de pruebas en la mesa antes de llevarlo al futbolín:
 
@@ -102,7 +102,7 @@ Nombre del dispositivo ESPHome: `futbolin`. Las entidades quedan en HA como `<do
 | Entidad | Tipo | Notas |
 |---|---|---|
 | `sensor.futbolin_bateria_voltios` | sensor (V) | Divisor al GPIO 34 |
-| `sensor.futbolin_bateria` | sensor (%) | Tabla de tensión a % del plomo en reposo. Usa la tensión más alta de los últimos 10 min, porque con las tiras encendidas el plomo cae ~0,5 V |
+| `sensor.futbolin_bateria` | sensor (%) | Lo que queda para gastar: 0 % es la media carga de donde no conviene bajar el plomo (12,2 V) y 100 % son 12,7 V. Usa la tensión más alta de los últimos 10 min, porque con las tiras encendidas el plomo cae ~0,5 V |
 | `binary_sensor.futbolin_atasco_a` / `_b` | binary_sensor | Haz tapado más de 2 s |
 | `binary_sensor.futbolin_luces_cortadas_por_bateria` | binary_sensor | Las tiras están apagadas por batería baja |
 | `binary_sensor.futbolin_autotest` | binary_sensor | on = OK |
@@ -125,7 +125,7 @@ Nombre del dispositivo ESPHome: `futbolin`. Las entidades quedan en HA como `<do
 | `button.futbolin_autotest` | Repite el autotest de las barreras |
 | `switch.futbolin_modo_enchufado` | Modo con fuente de 12 V: oculta la batería y silencia sus avisos |
 | `switch.futbolin_efectos_luz` | Apagado: el ESP32 apaga las tiras y deja de mandar presets (HA puede seguir manejándolas) |
-| `number.futbolin_luces_bateria_minima` | % por debajo del cual se cortan las luces (5–60, 25 por defecto). Vuelven al subir al mínimo + 10 |
+| `number.futbolin_luces_bateria_minima` | % por debajo del cual se cortan las luces (5–60, 20 por defecto). Vuelven al subir al mínimo + 20 |
 
 ### Tiras (ESP32 → WLED)
 

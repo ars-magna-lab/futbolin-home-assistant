@@ -9,8 +9,8 @@ Un futbolín clásico (un Córdoba antiguo restaurado) que cuenta los goles solo
 - **Marcador en una tablet.** Dashboard de Home Assistant con aspecto de marcador de estadio: dígitos de matriz de puntos, la columna de las 11 bolas y animaciones de gol, «la buena» y victoria.
 - **Locutor.** Cada gol se narra con una frase distinta y con jugadores reales, y cada partida empieza con una presentación del clásico. La música de fondo baja mientras habla.
 - **Control por voz.** «Nueva partida», «gol del Madrid», «quita un gol al Barça»… con Assist, en local.
-- **Luces.** Dos tiras LED con WLED hacen efectos puntuales: la ola del gol cruza el campo hacia la portería rival y hay fiesta al ganar. Se apagan solas si la batería baja.
-- **A batería.** Sin cables mientras se juega. El aspecto exterior no cambia, salvo un interruptor discreto por debajo.
+- **Luces.** Dos tiras LED con WLED hacen efectos puntuales: la ola del gol cruza el campo hacia la portería rival y hay fiesta al ganar. Si la batería baja se apagan solas y se sigue jugando sin ellas. Con la buena, un latido dorado que se acelera hasta el gol que decide.
+- **A batería.** Sin cables mientras se juega. El aspecto exterior no cambia, salvo un interruptor discreto por debajo. Home Assistant recuerda apagarlo si nadie juega y cargar las baterías antes de que se estropeen.
 
 ## Cómo está hecho
 
